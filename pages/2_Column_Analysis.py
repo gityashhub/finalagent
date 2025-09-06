@@ -91,11 +91,12 @@ if selected_column in st.session_state.column_analysis:
     st.subheader(f"2. Detailed Analysis: {selected_column}")
     
     # Basic Information Tab
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
         "📋 Basic Info", 
         "❌ Missing Data", 
         "⚡ Outliers", 
         "📈 Distribution", 
+        "🚨 Rule Violations",
         "🎯 Recommendations"
     ])
     
@@ -327,6 +328,66 @@ if selected_column in st.session_state.column_analysis:
                 st.caption("Higher entropy indicates more uniform distribution")
     
     with tab5:
+        st.subheader("Rule-Based Violations")
+        
+        rule_violations = analysis.get('rule_violations', {})
+        
+        if rule_violations.get('total_violations', 0) == 0:
+            st.success("✅ No rule violations detected in this column!")
+        else:
+            # Violation summary
+            severity = rule_violations.get('severity', 'low')
+            severity_colors = {'high': 'red', 'moderate': 'orange', 'low': 'yellow'}
+            severity_icons = {'high': '🔴', 'moderate': '🟡', 'low': '🟡'}
+            
+            violation_cols = st.columns(3)
+            
+            with violation_cols[0]:
+                st.metric("Total Violations", rule_violations['total_violations'])
+            with violation_cols[1]:
+                st.metric("Violation Types", len(rule_violations.get('violation_types', [])))
+            with violation_cols[2]:
+                st.markdown(f"""
+                **Severity:** {severity_icons[severity]} <span style="color: {severity_colors[severity]}; font-weight: bold;">
+                {severity.upper()}</span>
+                """, unsafe_allow_html=True)
+            
+            # Display violation types
+            if rule_violations.get('violation_types'):
+                st.markdown("### Detected Violations")
+                for violation_type in rule_violations['violation_types']:
+                    st.markdown(f"- ⚠️ {violation_type}")
+            
+            # Detailed violation information
+            details = rule_violations.get('details', {})
+            if details:
+                st.markdown("### Violation Details")
+                
+                for violation_key, violation_info in details.items():
+                    with st.expander(f"📊 {violation_info.get('rule', violation_key)}"):
+                        st.write(f"**Count:** {violation_info.get('count', 0)} violations")
+                        st.write(f"**Rule:** {violation_info.get('rule', 'No rule specified')}")
+                        
+                        if violation_info.get('invalid_values'):
+                            st.write("**Sample invalid values:**")
+                            invalid_values = violation_info['invalid_values']
+                            for i, value in enumerate(invalid_values[:5], 1):
+                                st.write(f"{i}. `{value}`")
+                            
+                            if len(invalid_values) > 5:
+                                st.write(f"... and {len(invalid_values) - 5} more")
+            
+            # Recommendations for fixing violations
+            st.markdown("### 🛠️ Fixing Rule Violations")
+            st.info("""
+            **Recommended Actions:**
+            - Review the invalid values to understand the pattern
+            - Consider if these are data entry errors or legitimate edge cases
+            - Use the Cleaning Wizard to apply appropriate transformations
+            - Consult with domain experts for unusual cases
+            """)
+    
+    with tab6:
         st.subheader("Cleaning Recommendations")
         
         recommendations = analysis['cleaning_recommendations']

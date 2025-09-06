@@ -30,6 +30,7 @@ class ColumnAnalyzer:
             'distribution_analysis': self._analyze_distribution(series),
             'data_quality': self._assess_data_quality(series),
             'relationships': self._analyze_relationships(df, column),
+            'rule_violations': self._detect_rule_violations(series, column),
             'cleaning_recommendations': []
         }
         
@@ -241,7 +242,7 @@ class ColumnAnalyzer:
             issues.append(f"Low missing data rate ({missing_pct:.1f}%)")
         
         # Data type consistency
-        if series.dtype == 'object':
+        if pd.api.types.is_string_dtype(series) or series.dtype == 'object':
             # Check for mixed types in object columns
             non_null_series = series.dropna()
             if len(non_null_series) > 0:
@@ -284,6 +285,214 @@ class ColumnAnalyzer:
                                                       reverse=True)[:5])
         
         return relationships
+    
+    def _detect_rule_violations(self, series: pd.Series, column_name: str) -> Dict[str, Any]:
+        """Detect rule-based violations in the column data"""
+        violations = {
+            'total_violations': 0,
+            'violation_types': [],
+            'severity': 'low',
+            'details': {}
+        }
+        
+        non_null_series = series.dropna()
+        if len(non_null_series) == 0:
+            return violations
+        
+        # Numeric range violations
+        if pd.api.types.is_numeric_dtype(series):
+            violations.update(self._check_numeric_range_violations(non_null_series, column_name))
+        
+        # Text format violations
+        elif series.dtype == 'object':
+            violations.update(self._check_text_format_violations(non_null_series, column_name))
+        
+        # Categorical consistency violations
+        violations.update(self._check_categorical_violations(non_null_series, column_name))
+        
+        # Determine overall severity
+        if violations['total_violations'] > len(series) * 0.1:
+            violations['severity'] = 'high'
+        elif violations['total_violations'] > len(series) * 0.05:
+            violations['severity'] = 'moderate'
+        else:
+            violations['severity'] = 'low'
+            
+        return violations
+    
+    def _check_numeric_range_violations(self, series: pd.Series, column_name: str) -> Dict[str, Any]:
+        """Check for numeric range violations based on column type inference"""
+        violations = {'total_violations': 0, 'violation_types': [], 'details': {}}
+        
+        # Infer expected ranges based on column name patterns
+        column_lower = column_name.lower()
+        
+        # Age-related columns
+        if any(keyword in column_lower for keyword in ['age', 'years_old', 'birth_year']):
+            if 'age' in column_lower:
+                invalid_ages = series[(series < 0) | (series > 120)]
+                if len(invalid_ages) > 0:
+                    violations['total_violations'] += len(invalid_ages)
+                    violations['violation_types'].append('Invalid age range')
+                    violations['details']['age_violations'] = {
+                        'count': len(invalid_ages),
+                        'rule': 'Age should be between 0 and 120',
+                        'invalid_values': invalid_ages.tolist()[:10]
+                    }
+            
+            elif 'birth_year' in column_lower:
+                from datetime import datetime
+                current_year = datetime.now().year
+                invalid_years = series[(series < 1900) | (series > current_year)]
+                if len(invalid_years) > 0:
+                    violations['total_violations'] += len(invalid_years)
+                    violations['violation_types'].append('Invalid birth year')
+                    violations['details']['birth_year_violations'] = {
+                        'count': len(invalid_years),
+                        'rule': f'Birth year should be between 1900 and {current_year}',
+                        'invalid_values': invalid_years.tolist()[:10]
+                    }
+        
+        # Percentage columns
+        elif any(keyword in column_lower for keyword in ['percent', 'percentage', 'rate', 'ratio']):
+            invalid_percentages = series[(series < 0) | (series > 100)]
+            if len(invalid_percentages) > 0:
+                violations['total_violations'] += len(invalid_percentages)
+                violations['violation_types'].append('Invalid percentage range')
+                violations['details']['percentage_violations'] = {
+                    'count': len(invalid_percentages),
+                    'rule': 'Percentage should be between 0 and 100',
+                    'invalid_values': invalid_percentages.tolist()[:10]
+                }
+        
+        # Score columns
+        elif any(keyword in column_lower for keyword in ['score', 'rating', 'grade']):
+            # Check for impossible negative scores
+            negative_scores = series[series < 0]
+            if len(negative_scores) > 0:
+                violations['total_violations'] += len(negative_scores)
+                violations['violation_types'].append('Negative scores detected')
+                violations['details']['negative_score_violations'] = {
+                    'count': len(negative_scores),
+                    'rule': 'Scores should not be negative',
+                    'invalid_values': negative_scores.tolist()[:10]
+                }
+        
+        # Income/salary columns
+        elif any(keyword in column_lower for keyword in ['income', 'salary', 'wage', 'earnings']):
+            negative_income = series[series < 0]
+            if len(negative_income) > 0:
+                violations['total_violations'] += len(negative_income)
+                violations['violation_types'].append('Negative income values')
+                violations['details']['income_violations'] = {
+                    'count': len(negative_income),
+                    'rule': 'Income should not be negative',
+                    'invalid_values': negative_income.tolist()[:10]
+                }
+        
+        return violations
+    
+    def _check_text_format_violations(self, series: pd.Series, column_name: str) -> Dict[str, Any]:
+        """Check for text format violations"""
+        violations = {'total_violations': 0, 'violation_types': [], 'details': {}}
+        
+        column_lower = column_name.lower()
+        
+        # Email format validation
+        if any(keyword in column_lower for keyword in ['email', 'e_mail', 'mail']):
+            import re
+            email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+            invalid_emails = series[~series.str.match(email_pattern, na=False)]
+            if len(invalid_emails) > 0:
+                violations['total_violations'] += len(invalid_emails)
+                violations['violation_types'].append('Invalid email format')
+                violations['details']['email_violations'] = {
+                    'count': len(invalid_emails),
+                    'rule': 'Email should follow valid email format',
+                    'invalid_values': invalid_emails.tolist()[:10]
+                }
+        
+        # Phone number format validation
+        elif any(keyword in column_lower for keyword in ['phone', 'telephone', 'mobile']):
+            import re
+            # Basic phone number pattern (flexible for international formats)
+            phone_pattern = r'^[\+]?[1-9][\d\s\-\(\)]{6,}$'
+            invalid_phones = series[~series.str.match(phone_pattern, na=False)]
+            if len(invalid_phones) > 0:
+                violations['total_violations'] += len(invalid_phones)
+                violations['violation_types'].append('Invalid phone format')
+                violations['details']['phone_violations'] = {
+                    'count': len(invalid_phones),
+                    'rule': 'Phone number should follow valid format',
+                    'invalid_values': invalid_phones.tolist()[:10]
+                }
+        
+        # Postal/ZIP code validation
+        elif any(keyword in column_lower for keyword in ['zip', 'postal', 'postcode']):
+            import re
+            # Basic postal code pattern (numbers and letters, 3-10 characters)
+            postal_pattern = r'^[A-Z0-9\s\-]{3,10}$'
+            invalid_postal = series[~series.str.upper().str.match(postal_pattern, na=False)]
+            if len(invalid_postal) > 0:
+                violations['total_violations'] += len(invalid_postal)
+                violations['violation_types'].append('Invalid postal code format')
+                violations['details']['postal_violations'] = {
+                    'count': len(invalid_postal),
+                    'rule': 'Postal code should be 3-10 alphanumeric characters',
+                    'invalid_values': invalid_postal.tolist()[:10]
+                }
+        
+        return violations
+    
+    def _check_categorical_violations(self, series: pd.Series, column_name: str) -> Dict[str, Any]:
+        """Check for categorical consistency violations"""
+        violations = {'total_violations': 0, 'violation_types': [], 'details': {}}
+        
+        column_lower = column_name.lower()
+        
+        # Gender consistency
+        if any(keyword in column_lower for keyword in ['gender', 'sex']):
+            valid_genders = {'male', 'm', 'female', 'f', 'other', 'non-binary', 'prefer not to say', 'unknown'}
+            if series.dtype == 'object':
+                invalid_genders = series[~series.str.lower().isin(valid_genders)]
+                if len(invalid_genders) > 0:
+                    violations['total_violations'] += len(invalid_genders)
+                    violations['violation_types'].append('Invalid gender values')
+                    violations['details']['gender_violations'] = {
+                        'count': len(invalid_genders),
+                        'rule': 'Gender should be from standard categories',
+                        'invalid_values': invalid_genders.tolist()[:10]
+                    }
+        
+        # Yes/No questions
+        elif any(keyword in column_lower for keyword in ['yes_no', 'yn', 'boolean', 'flag']):
+            valid_responses = {'yes', 'y', 'no', 'n', 'true', 'false', '1', '0'}
+            if series.dtype == 'object':
+                invalid_responses = series[~series.str.lower().isin(valid_responses)]
+                if len(invalid_responses) > 0:
+                    violations['total_violations'] += len(invalid_responses)
+                    violations['violation_types'].append('Invalid yes/no responses')
+                    violations['details']['yesno_violations'] = {
+                        'count': len(invalid_responses),
+                        'rule': 'Should be Yes/No or True/False',
+                        'invalid_values': invalid_responses.tolist()[:10]
+                    }
+        
+        # Check for unusual characters or encoding issues
+        if series.dtype == 'object':
+            import re
+            # Check for unusual Unicode characters that might indicate encoding issues
+            unusual_chars = series[series.str.contains(r'[^\x00-\x7F]', regex=True, na=False)]
+            if len(unusual_chars) > 0:
+                violations['total_violations'] += len(unusual_chars)
+                violations['violation_types'].append('Unusual character encoding')
+                violations['details']['encoding_violations'] = {
+                    'count': len(unusual_chars),
+                    'rule': 'Contains non-ASCII characters that may indicate encoding issues',
+                    'invalid_values': unusual_chars.tolist()[:5]
+                }
+        
+        return violations
     
     def _generate_cleaning_recommendations(self, analysis: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Generate context-specific cleaning recommendations for the column"""
