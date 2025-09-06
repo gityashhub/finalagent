@@ -75,7 +75,15 @@ class ColumnAnalyzer:
         missing_mask = series.isnull()
         
         if missing_mask.sum() == 0:
-            return {'pattern_type': 'none', 'analysis': 'No missing values found'}
+            return {
+                'total_missing': 0,
+                'percentage': 0,
+                'pattern_type': 'none', 
+                'consecutive_missing': [],
+                'missing_by_position': {},
+                'max_consecutive': 0,
+                'analysis': 'No missing values found'
+            }
         
         analysis = {
             'total_missing': missing_mask.sum(),
@@ -118,11 +126,27 @@ class ColumnAnalyzer:
     def _detect_outliers(self, series: pd.Series) -> Dict[str, Any]:
         """Detect outliers using multiple methods"""
         if not pd.api.types.is_numeric_dtype(series):
-            return {'method_results': {}, 'summary': 'Not applicable for non-numeric data'}
+            return {
+                'method_results': {}, 
+                'summary': {
+                    'methods_agree': False,
+                    'consensus_outliers': 0,
+                    'severity': 'low',
+                    'analysis': 'Not applicable for non-numeric data'
+                }
+            }
         
         non_null_series = series.dropna()
         if len(non_null_series) < 10:
-            return {'method_results': {}, 'summary': 'Insufficient data for outlier detection'}
+            return {
+                'method_results': {}, 
+                'summary': {
+                    'methods_agree': False,
+                    'consensus_outliers': 0,
+                    'severity': 'low',
+                    'analysis': 'Insufficient data for outlier detection'
+                }
+            }
         
         outlier_results = {}
         

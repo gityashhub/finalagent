@@ -332,11 +332,18 @@ st.subheader("6. 🤖 AI Guidance")
 ai_guidance_cols = st.columns([3, 1])
 
 with ai_guidance_cols[0]:
+    # Check if we have a selected quick question
+    default_question = st.session_state.get('selected_quick_question', '')
     ai_question = st.text_area(
         "Ask AI about this cleaning method:",
+        value=default_question,
         placeholder="e.g., 'Will this method preserve the statistical properties of my data?' or 'What are the risks of applying this method?'",
         key="cleaning_ai_question"
     )
+    
+    # Clear the quick question after it's been loaded
+    if 'selected_quick_question' in st.session_state:
+        del st.session_state.selected_quick_question
 
 with ai_guidance_cols[1]:
     st.markdown("**Quick Questions:**")
@@ -350,8 +357,9 @@ with ai_guidance_cols[1]:
     
     for i, question in enumerate(quick_questions):
         if st.button(f"❓ {question}", key=f"quick_q_{i}", use_container_width=True):
-            ai_question = question
-            st.session_state.cleaning_ai_question = question
+            # Store in a different session state key to avoid widget conflicts
+            st.session_state.selected_quick_question = question
+            st.rerun()
 
 if ai_question and st.button("🤖 Get AI Guidance"):
     assistant = AIAssistant()

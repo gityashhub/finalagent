@@ -23,7 +23,7 @@ class AIAssistant:
             st.error(f"Error initializing Groq client: {str(e)}")
             self.client = None
     
-    def set_context(self, dataset_info: Dict[str, Any], column_analysis: Dict[str, Any] = None):
+    def set_context(self, dataset_info: Dict[str, Any], column_analysis: Optional[Dict[str, Any]] = None):
         """Set the current context for AI assistance"""
         self.context = {
             'dataset_shape': dataset_info.get('shape', 'Unknown'),
@@ -34,7 +34,7 @@ class AIAssistant:
             'timestamp': datetime.now().isoformat()
         }
     
-    def ask_question(self, question: str, column_specific: str = None) -> str:
+    def ask_question(self, question: str, column_specific: Optional[str] = None) -> str:
         """Ask the AI assistant a question with current context"""
         if not self.client:
             return "AI assistant is not available. Please check your API configuration."
@@ -54,7 +54,7 @@ class AIAssistant:
                 max_tokens=1500
             )
             
-            ai_response = response.choices[0].message.content
+            ai_response = response.choices[0].message.content or "No response received"
             
             # Store conversation
             self.conversation_history.append({
@@ -69,7 +69,7 @@ class AIAssistant:
         except Exception as e:
             return f"Error getting AI response: {str(e)}"
     
-    def _build_system_prompt(self, column_specific: str = None) -> str:
+    def _build_system_prompt(self, column_specific: Optional[str] = None) -> str:
         """Build context-aware system prompt"""
         base_prompt = """You are an expert survey data analyst and statistician working for a statistical agency. 
         Your role is to provide column-specific, contextual guidance for data cleaning operations.
@@ -114,7 +114,7 @@ class AIAssistant:
         
         return base_prompt
     
-    def _build_user_message(self, question: str, column_specific: str = None) -> str:
+    def _build_user_message(self, question: str, column_specific: Optional[str] = None) -> str:
         """Build user message with context"""
         message = question
         
@@ -155,7 +155,7 @@ class AIAssistant:
         
         return self.ask_question(question, column)
     
-    def explain_concept(self, concept: str, context_column: str = None) -> str:
+    def explain_concept(self, concept: str, context_column: Optional[str] = None) -> str:
         """Explain a statistical concept in the context of current data"""
         question = f"Please explain {concept} in the context of survey data cleaning"
         

@@ -140,7 +140,7 @@ with quick_actions[2]:
         })
         
         with st.spinner("🤖 Preparing explanation..."):
-            response = assistant.explain_concept(concept.replace('_', ' '), context_column if context_column else None)
+            response = assistant.explain_concept(concept.replace('_', ' '), context_column)
             st.session_state.ai_conversation.append({
                 'type': 'assistant',
                 'message': response,
