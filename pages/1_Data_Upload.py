@@ -90,9 +90,9 @@ if st.session_state.dataset is not None:
             'Unique Values': df.nunique()
         })
         
-        st.dataframe(col_info, use_container_width=True)
+        st.dataframe(col_info, width='stretch')
     
-    st.dataframe(df.head(preview_rows), use_container_width=True)
+    st.dataframe(df.head(preview_rows), width='stretch')
     
     # Column type configuration
     st.subheader("4. Column Type Configuration")
@@ -168,13 +168,13 @@ if st.session_state.dataset is not None:
     col_update, col_analyze = st.columns([1, 1])
     
     with col_update:
-        if st.button("💾 Update Column Types", type="primary", use_container_width=True):
+        if st.button("💾 Update Column Types", type="primary", width='stretch'):
             st.session_state.column_types = updated_types
             st.success("✅ Column types updated successfully!")
             st.rerun()
     
     with col_analyze:
-        if st.button("🔍 Start Column Analysis", use_container_width=True):
+        if st.button("🔍 Start Column Analysis", width='stretch'):
             if any(updated_types.values()):
                 st.session_state.column_types = updated_types
                 
@@ -208,7 +208,7 @@ if st.session_state.dataset is not None:
     config_cols = st.columns([1, 1])
     
     with config_cols[0]:
-        if st.button("📤 Export Configuration", use_container_width=True):
+        if st.button("📤 Export Configuration", width='stretch'):
             from modules.utils import export_configuration
             config_json = export_configuration()
             st.download_button(

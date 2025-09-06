@@ -63,7 +63,7 @@ st.subheader("2. Generate Reports")
 generate_cols = st.columns([2, 1, 1])
 
 with generate_cols[0]:
-    if st.button("📊 Generate Reports", type="primary", use_container_width=True):
+    if st.button("📊 Generate Reports", type="primary", width='stretch'):
         if not report_types:
             st.error("Please select at least one report type.")
         else:
@@ -106,7 +106,7 @@ with generate_cols[2]:
                 data=html_content,
                 file_name=f"{filename}.html",
                 mime="text/html",
-                use_container_width=True
+                width='stretch'
             )
         elif export_format == 'json':
             json_content = report_generator.export_to_json(
@@ -122,7 +122,7 @@ with generate_cols[2]:
                 data=json_content,
                 file_name=f"{filename}.json",
                 mime="application/json",
-                use_container_width=True
+                width='stretch'
             )
         else:  # markdown
             # Combine all markdown reports
@@ -136,7 +136,7 @@ with generate_cols[2]:
                 data=combined_content,
                 file_name=f"{filename}.md",
                 mime="text/markdown",
-                use_container_width=True
+                width='stretch'
             )
 
 # Display generated reports
@@ -166,7 +166,7 @@ if st.session_state.get('generated_reports'):
         with viz_tabs[0]:
             st.markdown("### Dataset Overview")
             overview_fig = visualizer.plot_column_overview(df)
-            st.plotly_chart(overview_fig, use_container_width=True)
+            st.plotly_chart(overview_fig, width='stretch')
             
             # Basic statistics table
             st.markdown("### Basic Dataset Statistics")
@@ -191,12 +191,12 @@ if st.session_state.get('generated_reports'):
                 stats_data['Value'].append(f"{missing_reduction:,}")
             
             stats_df = pd.DataFrame(stats_data)
-            st.dataframe(stats_df, use_container_width=True, hide_index=True)
+            st.dataframe(stats_df, width='stretch', hide_index=True)
         
         with viz_tabs[1]:
             st.markdown("### Missing Data Patterns")
             missing_fig = visualizer.plot_missing_patterns(df)
-            st.plotly_chart(missing_fig, use_container_width=True)
+            st.plotly_chart(missing_fig, width='stretch')
             
             # Missing data summary
             missing_summary = df.isnull().sum().sort_values(ascending=False)
@@ -209,7 +209,7 @@ if st.session_state.get('generated_reports'):
                     'Missing Count': missing_summary.values,
                     'Missing Percentage': (missing_summary.values / len(df) * 100).round(2)
                 })
-                st.dataframe(missing_df, use_container_width=True, hide_index=True)
+                st.dataframe(missing_df, width='stretch', hide_index=True)
             else:
                 st.success("✅ No missing data in the current dataset!")
         
@@ -236,7 +236,7 @@ if st.session_state.get('generated_reports'):
                     # Sort by quality score
                     quality_df = quality_df.sort_values('Quality Score', ascending=False)
                     
-                    st.dataframe(quality_df, use_container_width=True, hide_index=True)
+                    st.dataframe(quality_df, width='stretch', hide_index=True)
                     
                     # Quality distribution
                     avg_quality = quality_df['Quality Score'].mean()
@@ -256,7 +256,7 @@ if st.session_state.get('generated_reports'):
             numeric_cols = df.select_dtypes(include=[np.number]).columns
             if len(numeric_cols) > 1:
                 correlation_fig = visualizer.plot_correlation_matrix(df)
-                st.plotly_chart(correlation_fig, use_container_width=True)
+                st.plotly_chart(correlation_fig, width='stretch')
                 
                 # High correlation pairs
                 corr_matrix = df[numeric_cols].corr()
@@ -276,7 +276,7 @@ if st.session_state.get('generated_reports'):
                 if high_corr_pairs:
                     st.markdown("### High Correlation Pairs (|r| > 0.7)")
                     corr_df = pd.DataFrame(high_corr_pairs)
-                    st.dataframe(corr_df, use_container_width=True, hide_index=True)
+                    st.dataframe(corr_df, width='stretch', hide_index=True)
                 else:
                     st.info("No high correlation pairs found.")
             else:
@@ -307,7 +307,7 @@ if st.session_state.cleaning_history:
         st.markdown(f"### Summary: {total_operations} operations across {len(operations_summary)} columns")
         
         operations_df = pd.DataFrame(operations_summary)
-        st.dataframe(operations_df, use_container_width=True, hide_index=True)
+        st.dataframe(operations_df, width='stretch', hide_index=True)
         
         # Operations timeline
         st.markdown("### Operations Timeline")
@@ -327,7 +327,7 @@ if st.session_state.cleaning_history:
             # Sort by timestamp
             timeline_df = pd.DataFrame(all_operations)
             timeline_df = timeline_df.sort_values('Timestamp', ascending=False)
-            st.dataframe(timeline_df.head(20), use_container_width=True, hide_index=True)
+            st.dataframe(timeline_df.head(20), width='stretch', hide_index=True)
             
             if len(timeline_df) > 20:
                 st.caption(f"Showing 20 most recent operations out of {len(timeline_df)} total")
@@ -489,7 +489,7 @@ with st.sidebar:
     # Quick actions
     st.markdown("### ⚡ Quick Actions")
     
-    if st.button("📤 Export All Data", use_container_width=True):
+    if st.button("📤 Export All Data", width='stretch'):
         csv_data = df.to_csv(index=False)
         st.download_button(
             "💾 Download CSV",
@@ -498,10 +498,10 @@ with st.sidebar:
             mime="text/csv"
         )
     
-    if st.button("🔍 Quick Analysis", use_container_width=True):
+    if st.button("🔍 Quick Analysis", width='stretch'):
         st.switch_page("pages/2_Column_Analysis.py")
     
-    if st.button("🤖 AI Assistant", use_container_width=True):
+    if st.button("🤖 AI Assistant", width='stretch'):
         st.switch_page("pages/4_AI_Assistant.py")
 
 # Footer
