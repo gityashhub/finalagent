@@ -163,7 +163,7 @@ class DataCleaningEngine:
     def _forward_fill(self, df: pd.DataFrame, column: str, **kwargs) -> Tuple[pd.Series, Dict[str, Any]]:
         """Forward fill missing values"""
         series = df[column].copy()
-        filled_series = series.fillna(method='ffill')
+        filled_series = series.ffill()
         
         # If still missing values (e.g., leading NaNs), fill with mode/median
         if filled_series.isnull().sum() > 0:
@@ -185,7 +185,7 @@ class DataCleaningEngine:
     def _backward_fill(self, df: pd.DataFrame, column: str, **kwargs) -> Tuple[pd.Series, Dict[str, Any]]:
         """Backward fill missing values"""
         series = df[column].copy()
-        filled_series = series.fillna(method='bfill')
+        filled_series = series.bfill()
         
         # If still missing values (e.g., trailing NaNs), fill with mode/median
         if filled_series.isnull().sum() > 0:

@@ -194,12 +194,18 @@ class ColumnAnalyzer:
         # Statistical summary
         total_outliers = set()
         for method_result in outlier_results.values():
-            total_outliers.update(method_result['outlier_values'])
+            outlier_values = method_result.get('outlier_values', [])
+            if outlier_values:
+                total_outliers.update(outlier_values)
+        
+        # Calculate severity based on outlier percentages
+        outlier_percentages = [r.get('outlier_percentage', 0) for r in outlier_results.values()]
+        max_percentage = max(outlier_percentages) if outlier_percentages else 0
         
         summary = {
             'methods_agree': len(set(iqr_outliers.tolist()) & set(z_outliers.tolist())) > 0,
             'consensus_outliers': len(total_outliers),
-            'severity': 'high' if max([r['outlier_percentage'] for r in outlier_results.values()]) > 10 else 'moderate' if max([r['outlier_percentage'] for r in outlier_results.values()]) > 5 else 'low'
+            'severity': 'high' if max_percentage > 10 else 'moderate' if max_percentage > 5 else 'low'
         }
         
         return {
@@ -216,15 +222,17 @@ class ColumnAnalyzer:
                 'type': 'categorical',
                 'most_frequent': value_counts.index[0] if len(value_counts) > 0 else None,
                 'frequency_distribution': value_counts.head(10).to_dict(),
-                'entropy': stats.entropy(value_counts.values)
+                'entropy': stats.entropy(value_counts.values) if len(value_counts) > 0 else 0
             }
         
         non_null_series = series.dropna()
         if len(non_null_series) < 10:
             return {'type': 'insufficient_data'}
         
-        # Statistical tests for normality
-        shapiro_stat, shapiro_p = stats.shapiro(non_null_series.sample(min(5000, len(non_null_series))))
+        # Statistical tests for normality (limit sample size for performance)
+        sample_size = min(5000, len(non_null_series))
+        sample_data = non_null_series.sample(sample_size) if len(non_null_series) > sample_size else non_null_series
+        shapiro_stat, shapiro_p = stats.shapiro(sample_data)
         
         analysis = {
             'type': 'numeric',
@@ -300,9 +308,12 @@ class ColumnAnalyzer:
             numeric_cols.remove(column)
             correlations = {}
             for col in numeric_cols[:10]:  # Limit to top 10 for performance
-                corr = series.corr(df[col])
-                if not pd.isna(corr) and abs(corr) > 0.1:
-                    correlations[col] = corr
+                try:
+                    corr = series.corr(df[col])
+                    if pd.notna(corr) and abs(corr) > 0.1:
+                        correlations[col] = corr
+                except Exception:
+                    continue
             
             relationships['correlations'] = dict(sorted(correlations.items(), 
                                                       key=lambda x: abs(x[1]), 

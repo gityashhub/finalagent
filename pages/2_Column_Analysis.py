@@ -320,7 +320,8 @@ if selected_column in st.session_state.column_analysis:
             
             freq_dist = distribution_analysis['frequency_distribution']
             if freq_dist:
-                freq_df = pd.DataFrame(list(freq_dist.items()), columns=['Category', 'Count'])
+                freq_data = list(freq_dist.items())
+                freq_df = pd.DataFrame(freq_data, columns=['Category', 'Count'])
                 st.dataframe(freq_df, use_container_width=True)
             
             if 'entropy' in distribution_analysis:
