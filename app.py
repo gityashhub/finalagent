@@ -57,7 +57,7 @@ def main():
             cleaned_cols = len(st.session_state.get('cleaning_history', {}))
             st.metric("Cleaned Columns", cleaned_cols)
         
-        st.dataframe(df.head(), use_container_width=True)
+        st.dataframe(df.head(), width='stretch')
     else:
         st.info("👆 Please upload a dataset using the **Data Upload** page to get started.")
         

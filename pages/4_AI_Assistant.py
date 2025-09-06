@@ -70,7 +70,7 @@ st.markdown("### 🚀 Quick Actions")
 quick_actions = st.columns(4)
 
 with quick_actions[0]:
-    if st.button("📋 Dataset Overview", use_container_width=True):
+    if st.button("📋 Dataset Overview", width='stretch'):
         question = "Please provide an overview of my dataset and highlight the main data quality issues I should address first."
         st.session_state.ai_conversation.append({
             'type': 'user',
@@ -90,7 +90,7 @@ with quick_actions[0]:
         st.rerun()
 
 with quick_actions[1]:
-    if st.button("🎯 Method Comparison", use_container_width=True):
+    if st.button("🎯 Method Comparison", width='stretch'):
         if context_column and context_column in st.session_state.column_analysis:
             analysis = st.session_state.column_analysis[context_column]
             question = f"Compare the different cleaning methods available for column '{context_column}' and recommend the best approach."
@@ -115,7 +115,7 @@ with quick_actions[1]:
             st.warning("Please select a column first")
 
 with quick_actions[2]:
-    if st.button("📚 Explain Concept", use_container_width=True):
+    if st.button("📚 Explain Concept", width='stretch'):
         # Show concept selection
         concept = st.selectbox(
             "Select concept to explain:",
@@ -150,7 +150,7 @@ with quick_actions[2]:
         st.rerun()
 
 with quick_actions[3]:
-    if st.button("🔍 Impact Assessment", use_container_width=True):
+    if st.button("🔍 Impact Assessment", width='stretch'):
         if context_column:
             # Get recent cleaning history for this column
             column_history = st.session_state.cleaning_history.get(context_column, [])
@@ -197,10 +197,10 @@ question_input = st.text_area(
 send_cols = st.columns([3, 1])
 
 with send_cols[0]:
-    send_button = st.button("🚀 Send Question", type="primary", use_container_width=True)
+    send_button = st.button("🚀 Send Question", type="primary", width='stretch')
 
 with send_cols[1]:
-    if st.button("🗑️ Clear Chat", use_container_width=True):
+    if st.button("🗑️ Clear Chat", width='stretch'):
         st.session_state.ai_conversation = []
         assistant.clear_conversation_history()
         st.rerun()
@@ -245,8 +245,7 @@ if send_button and question_input.strip():
                 'context': 'error'
             })
     
-    # Clear input and refresh
-    st.session_state.ai_question_input = ""
+    # Refresh to show new conversation
     st.rerun()
 
 # Display conversation history
@@ -439,13 +438,13 @@ with st.sidebar:
     # Quick navigation
     st.markdown("### ⚡ Quick Navigation")
     
-    if st.button("🔍 Column Analysis", use_container_width=True):
+    if st.button("🔍 Column Analysis", width='stretch'):
         st.switch_page("pages/2_Column_Analysis.py")
     
-    if st.button("🧹 Cleaning Wizard", use_container_width=True):
+    if st.button("🧹 Cleaning Wizard", width='stretch'):
         st.switch_page("pages/3_Cleaning_Wizard.py")
     
-    if st.button("📊 Generate Reports", use_container_width=True):
+    if st.button("📊 Generate Reports", width='stretch'):
         st.switch_page("pages/5_Reports.py")
 
 # Footer with tips

@@ -194,7 +194,7 @@ st.subheader("4. Preview and Apply")
 preview_cols = st.columns([1, 1])
 
 with preview_cols[0]:
-    if st.button("👁️ Preview Changes", type="secondary", use_container_width=True):
+    if st.button("👁️ Preview Changes", type="secondary", width='stretch'):
         try:
             # Apply method to get preview
             cleaned_series, metadata = cleaning_engine.apply_cleaning_method(
@@ -220,7 +220,7 @@ with preview_cols[0]:
             st.error(f"❌ Error generating preview: {str(e)}")
 
 with preview_cols[1]:
-    if st.button("✅ Apply Changes", type="primary", use_container_width=True):
+    if st.button("✅ Apply Changes", type="primary", width='stretch'):
         if 'preview_results' not in st.session_state:
             st.warning("⚠️ Please generate a preview first")
         else:
@@ -284,12 +284,12 @@ if 'preview_results' in st.session_state:
         with stats_cols[0]:
             st.markdown("**Before Statistics:**")
             orig_stats = preview['original'].describe()
-            st.dataframe(orig_stats.to_frame('Original'), use_container_width=True)
+            st.dataframe(orig_stats.to_frame('Original'), width='stretch')
         
         with stats_cols[1]:
             st.markdown("**After Statistics:**")
             clean_stats = preview['cleaned'].describe()
-            st.dataframe(clean_stats.to_frame('Cleaned'), use_container_width=True)
+            st.dataframe(clean_stats.to_frame('Cleaned'), width='stretch')
     
     # Visualization comparison
     st.markdown("**Before/After Comparison:**")
@@ -299,7 +299,7 @@ if 'preview_results' in st.session_state:
         selected_column, 
         method_name
     )
-    st.plotly_chart(comparison_fig, use_container_width=True)
+    st.plotly_chart(comparison_fig, width='stretch')
     
     # Sample data comparison
     st.markdown("**Sample Data Changes:**")
@@ -318,7 +318,7 @@ if 'preview_results' in st.session_state:
             'After': [cleaned_series.loc[i] if pd.notna(cleaned_series.loc[i]) else 'NaN' for i in changed_indices]
         })
         
-        st.dataframe(comparison_data, use_container_width=True)
+        st.dataframe(comparison_data, width='stretch')
         
         if len(changed_indices) == 20:
             remaining = changed_mask.sum() - 20
@@ -356,12 +356,12 @@ with ai_guidance_cols[1]:
     ]
     
     for i, question in enumerate(quick_questions):
-        if st.button(f"❓ {question}", key=f"quick_q_{i}", use_container_width=True):
+        if st.button(f"❓ {question}", key=f"quick_q_{i}", width='stretch'):
             # Store in a different session state key to avoid widget conflicts
             st.session_state.selected_quick_question = question
             st.rerun()
 
-if ai_question and st.button("🤖 Get AI Guidance"):
+if st.button("🤖 Get AI Guidance") and ai_question.strip():
     assistant = AIAssistant()
     
     # Set context
@@ -465,13 +465,13 @@ with st.sidebar:
     # Quick actions
     st.markdown("### ⚡ Quick Actions")
     
-    if st.button("🔍 Analyze All Columns", use_container_width=True):
+    if st.button("🔍 Analyze All Columns", width='stretch'):
         st.switch_page("pages/2_Column_Analysis.py")
     
-    if st.button("📊 Generate Report", use_container_width=True):
+    if st.button("📊 Generate Report", width='stretch'):
         st.switch_page("pages/5_Reports.py")
     
-    if st.button("🤖 AI Assistant", use_container_width=True):
+    if st.button("🤖 AI Assistant", width='stretch'):
         st.switch_page("pages/4_AI_Assistant.py")
 
 # Navigation hints

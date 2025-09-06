@@ -74,11 +74,11 @@ if st.session_state.get('show_overview', False):
     
     # Create overview visualization
     overview_fig = visualizer.plot_column_overview(df)
-    st.plotly_chart(overview_fig, use_container_width=True)
+    st.plotly_chart(overview_fig, width='stretch')
     
     # Missing patterns heatmap
     missing_fig = visualizer.plot_missing_patterns(df)
-    st.plotly_chart(missing_fig, use_container_width=True)
+    st.plotly_chart(missing_fig, width='stretch')
     
     if st.button("❌ Close Overview"):
         st.session_state.show_overview = False
@@ -247,7 +247,7 @@ if selected_column in st.session_state.column_analysis:
                 })
             
             method_df = pd.DataFrame(method_data)
-            st.dataframe(method_df, use_container_width=True)
+            st.dataframe(method_df, width='stretch')
             
             # Detailed results for each method
             for method_key, results in method_results.items():
@@ -267,7 +267,7 @@ if selected_column in st.session_state.column_analysis:
             
             # Outlier visualization
             outlier_fig = visualizer.plot_outliers(df[selected_column], selected_column, outlier_analysis)
-            st.plotly_chart(outlier_fig, use_container_width=True)
+            st.plotly_chart(outlier_fig, width='stretch')
     
     with tab4:
         st.subheader("Distribution Analysis")
@@ -276,7 +276,7 @@ if selected_column in st.session_state.column_analysis:
         
         # Distribution plot
         dist_fig = visualizer.plot_column_distribution(df[selected_column], selected_column)
-        st.plotly_chart(dist_fig, use_container_width=True)
+        st.plotly_chart(dist_fig, width='stretch')
         
         # Distribution characteristics
         if distribution_analysis['type'] == 'numeric':
@@ -322,7 +322,7 @@ if selected_column in st.session_state.column_analysis:
             if freq_dist:
                 freq_data = list(freq_dist.items())
                 freq_df = pd.DataFrame(freq_data, columns=['Category', 'Count'])
-                st.dataframe(freq_df, use_container_width=True)
+                st.dataframe(freq_df, width='stretch')
             
             if 'entropy' in distribution_analysis:
                 st.metric("Entropy", f"{distribution_analysis['entropy']:.3f}")
@@ -492,10 +492,10 @@ with st.sidebar:
                 st.metric("Outliers Detected", outlier_count)
         
         # Quick navigation
-        if st.button("🧹 Clean This Column", use_container_width=True):
+        if st.button("🧹 Clean This Column", width='stretch'):
             st.switch_page("pages/3_Cleaning_Wizard.py")
         
-        if st.button("🤖 Ask AI About This Column", use_container_width=True):
+        if st.button("🤖 Ask AI About This Column", width='stretch'):
             st.switch_page("pages/4_AI_Assistant.py")
     
     # Analysis progress
@@ -507,7 +507,7 @@ with st.sidebar:
     st.progress(progress)
     st.write(f"{analyzed_count}/{total_count} columns analyzed")
     
-    if st.button("🔍 Analyze All Columns", use_container_width=True):
+    if st.button("🔍 Analyze All Columns", width='stretch'):
         analyzer = ColumnAnalyzer()
         
         progress_bar = st.progress(0)
