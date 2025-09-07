@@ -11,7 +11,12 @@ from modules.survey_weights import SurveyWeightsManager
 # Initialize session state
 initialize_session_state()
 
-st.title("🧹 Data Cleaning Wizard")
+st.title("🧙‍♀️ Data Cleaning Wizard with Integrated Weights")
+
+st.markdown("""
+Apply comprehensive data cleaning operations with integrated survey weights. All cleaning methods 
+consider survey weights when calculating impact assessments and provide both weighted and unweighted statistics.
+""")
 
 # Check if dataset is loaded
 if st.session_state.dataset is None:
@@ -21,16 +26,28 @@ if st.session_state.dataset is None:
 df = st.session_state.dataset.copy()
 cleaning_engine = DataCleaningEngine()
 visualizer = DataVisualizer()
+analyzer = st.session_state.data_analyzer
 
-# Initialize weights manager
-if 'weights_manager' not in st.session_state:
-    st.session_state.weights_manager = SurveyWeightsManager()
-weights_manager = st.session_state.weights_manager
+# Get weights manager from session state
+weights_manager = st.session_state.get('weights_manager')
 
-st.markdown("""
-Apply context-specific cleaning methods to individual columns with full control and preview capabilities.
-Each operation is tracked and can be undone/redone.
-""")
+# Display weights status
+if weights_manager and weights_manager.weights_column:
+    st.info(f"⚖️ **Survey weights active:** Using '{weights_manager.weights_column}' for weighted analysis")
+else:
+    st.info("📊 **Unweighted analysis:** No survey weights configured")
+
+# Check for inter-column violations before cleaning
+if 'inter_column_violations' not in st.session_state:
+    with st.spinner("🔍 Checking for inter-column rule violations..."):
+        violations = analyzer.detect_inter_column_violations(df)
+        st.session_state.inter_column_violations = violations
+
+# Display violations if any
+violations = st.session_state.get('inter_column_violations', {})
+if violations.get('total_violations', 0) > 0:
+    severity_emoji = {'low': '🟢', 'moderate': '🟡', 'high': '🔴'}[violations['severity']]
+    st.warning(f"{severity_emoji} **{violations['total_violations']} inter-column violations detected** - Address these during cleaning for data consistency")
 
 # Control panel
 control_cols = st.columns([2, 1, 1, 1])
@@ -59,8 +76,78 @@ with control_cols[3]:
     redo_available = len(st.session_state.get('redo_stack', []))
     st.caption(f"Undo: {undo_available} | Redo: {redo_available}")
 
+# Survey Weights Configuration Section
+st.subheader("1. Survey Weights Configuration")
+
+st.markdown("""
+Configure survey weights to account for sampling design effects. All cleaning operations will 
+provide both weighted and unweighted impact assessments.
+""")
+
+# Weights configuration
+weights_cols = st.columns([2, 2])
+
+with weights_cols[0]:
+    numeric_columns = df.select_dtypes(include=[np.number]).columns.tolist()
+    
+    weights_col = st.selectbox(
+        "Select weights column:",
+        options=['None'] + numeric_columns,
+        key="weights_selection",
+        help="Choose the column containing survey design weights, or select 'None' for unweighted analysis"
+    )
+
+with weights_cols[1]:
+    if weights_col != 'None':
+        if st.button("Configure Weights", type="primary"):
+            try:
+                # Initialize weights manager if not exists
+                if 'weights_manager' not in st.session_state:
+                    st.session_state.weights_manager = SurveyWeightsManager()
+                
+                validation_result = st.session_state.weights_manager.set_weights_column(df, weights_col)
+                
+                if validation_result['valid']:
+                    st.success(f"✅ Weights column '{weights_col}' configured successfully!")
+                    
+                    if validation_result['warnings']:
+                        st.warning("⚠️ Warnings:")
+                        for warning in validation_result['warnings']:
+                            st.write(f"• {warning}")
+                else:
+                    st.error("❌ Invalid weights column:")
+                    for error in validation_result['errors']:
+                        st.write(f"• {error}")
+                        
+            except Exception as e:
+                st.error(f"❌ Error configuring weights: {str(e)}")
+    else:
+        # Clear weights configuration if 'None' selected
+        if 'weights_manager' in st.session_state:
+            st.session_state.weights_manager = None
+        st.info("ℹ️ Proceeding with unweighted analysis")
+
+# Display current weights status
+weights_manager = st.session_state.get('weights_manager')
+if weights_manager and weights_manager.weights_column:
+    weights_data = df[weights_manager.weights_column].dropna()
+    
+    # Show weights diagnostics
+    diagnostics_cols = st.columns(4)
+    with diagnostics_cols[0]:
+        st.metric("Mean Weight", f"{weights_data.mean():.3f}")
+    with diagnostics_cols[1]:
+        st.metric("Weight Range", f"{weights_data.min():.2f} - {weights_data.max():.2f}")
+    with diagnostics_cols[2]:
+        # Calculate design effect estimate
+        deff = (weights_data.sum()**2) / (len(weights_data) * (weights_data**2).sum())
+        st.metric("Design Effect", f"{deff:.2f}")
+    with diagnostics_cols[3]:
+        effective_n = len(weights_data) / deff
+        st.metric("Effective N", f"{effective_n:.0f}")
+
 # Column selection and method selection
-st.subheader("1. Select Column and Cleaning Method")
+st.subheader("2. Select Column and Cleaning Method")
 
 selection_cols = st.columns([2, 2])
 
