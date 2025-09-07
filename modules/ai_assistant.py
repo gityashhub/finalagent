@@ -114,24 +114,73 @@ class AIAssistant:
         """
         
         if self.context:
+            # Convert numpy types to native Python types for JSON serialization
+            def convert_numpy_types(obj):
+                if hasattr(obj, 'item'):  # numpy scalar
+                    return obj.item()
+                elif hasattr(obj, 'tolist'):  # numpy array
+                    return obj.tolist()
+                elif isinstance(obj, dict):
+                    return {k: convert_numpy_types(v) for k, v in obj.items()}
+                elif isinstance(obj, list):
+                    return [convert_numpy_types(v) for v in obj]
+                else:
+                    return obj
+            
+            safe_column_types = convert_numpy_types(self.context.get('column_types', {}))
+            safe_dataset_info = convert_numpy_types({
+                'dataset_shape': self.context.get('dataset_shape', 'Unknown'),
+                'column_count': self.context.get('column_count', 'Unknown'),
+                'missing_data_summary': self.context.get('missing_data_summary', {}),
+                'current_dataset_stats': self.context.get('current_dataset_stats', {}),
+                'cleaning_history': self.context.get('cleaning_history', {}),
+                'weights_info': self.context.get('weights_info', {})
+            })
+            
             context_info = f"""
             CURRENT DATASET CONTEXT:
-            - Dataset shape: {self.context.get('dataset_shape', 'Unknown')}
-            - Total columns: {self.context.get('column_count', 'Unknown')}
-            - Column types: {json.dumps(self.context.get('column_types', {}), indent=2)}
+            - Dataset shape: {safe_dataset_info['dataset_shape']}
+            - Total columns: {safe_dataset_info['column_count']}
+            - Missing values total: {safe_dataset_info.get('current_dataset_stats', {}).get('missing_total', 'Unknown')}
+            - Columns cleaned so far: {safe_dataset_info.get('current_dataset_stats', {}).get('columns_cleaned', 0)}
+            - Column types: {json.dumps(safe_column_types, indent=2)}
+            
+            CLEANING PROGRESS:
+            {json.dumps(safe_dataset_info.get('cleaning_history', {}), indent=2) if safe_dataset_info.get('cleaning_history') else 'No cleaning operations performed yet'}
+            
+            SURVEY WEIGHTS:
+            {json.dumps(safe_dataset_info.get('weights_info', {}), indent=2) if safe_dataset_info.get('weights_info') else 'No design weights configured'}
             """
             base_prompt += context_info
         
         if column_specific and self.context.get('current_column_analysis'):
             column_analysis = self.context['current_column_analysis']
+            
+            # Convert numpy types for safe JSON serialization
+            def convert_numpy_types(obj):
+                if hasattr(obj, 'item'):
+                    return obj.item()
+                elif hasattr(obj, 'tolist'):
+                    return obj.tolist()
+                elif isinstance(obj, dict):
+                    return {k: convert_numpy_types(v) for k, v in obj.items()}
+                elif isinstance(obj, list):
+                    return [convert_numpy_types(v) for v in obj]
+                else:
+                    return obj
+            
+            safe_analysis = convert_numpy_types(column_analysis)
+            
             column_prompt = f"""
             CURRENT COLUMN ANALYSIS FOR '{column_specific}':
-            - Basic info: {json.dumps(column_analysis.get('basic_info', {}), indent=2)}
-            - Missing data: {json.dumps(column_analysis.get('missing_analysis', {}), indent=2)}
-            - Outliers: {json.dumps(column_analysis.get('outlier_analysis', {}).get('summary', {}), indent=2)}
-            - Data quality: {json.dumps(column_analysis.get('data_quality', {}), indent=2)}
+            - Basic info: {json.dumps(safe_analysis.get('basic_info', {}), indent=2)}
+            - Missing data: {json.dumps(safe_analysis.get('missing_analysis', {}), indent=2)}
+            - Outliers: {json.dumps(safe_analysis.get('outlier_analysis', {}).get('summary', {}), indent=2)}
+            - Data quality: {json.dumps(safe_analysis.get('data_quality', {}), indent=2)}
+            - Rule violations: {json.dumps(safe_analysis.get('rule_violations', {}), indent=2)}
             
             Focus your response specifically on this column's characteristics and needs.
+            Provide concrete, actionable advice based on these exact statistics and violations.
             """
             base_prompt += column_prompt
         

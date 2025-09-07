@@ -123,13 +123,13 @@ class SurveyWeightsManager:
         
         if pd.api.types.is_numeric_dtype(series):
             # Weighted mean
-            weighted_mean = (series * weights).sum() / total_weight
+            weighted_mean = float((series * weights).sum() / total_weight)
             stats['mean'] = weighted_mean
             
             # Weighted variance and std
-            weighted_variance = ((series - weighted_mean) ** 2 * weights).sum() / total_weight
+            weighted_variance = float(((series - weighted_mean) ** 2 * weights).sum() / total_weight)
             stats['variance'] = weighted_variance
-            stats['std'] = np.sqrt(weighted_variance)
+            stats['std'] = float(np.sqrt(weighted_variance))
             
             # Weighted percentiles (approximation)
             sorted_indices = np.argsort(series.values)
@@ -147,8 +147,8 @@ class SurveyWeightsManager:
                 else:
                     stats[f'q{int(p*100)}'] = sorted_values.iloc[-1]
             
-            stats['min'] = series.min()
-            stats['max'] = series.max()
+            stats['min'] = float(series.min())
+            stats['max'] = float(series.max())
             
         elif series.dtype == 'object':
             # Weighted mode and frequencies

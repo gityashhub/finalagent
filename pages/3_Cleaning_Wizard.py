@@ -6,6 +6,7 @@ from modules.data_analyzer import ColumnAnalyzer
 from modules.cleaning_engine import DataCleaningEngine
 from modules.visualization import DataVisualizer
 from modules.ai_assistant import AIAssistant
+from modules.survey_weights import SurveyWeightsManager
 
 # Initialize session state
 initialize_session_state()
@@ -20,6 +21,11 @@ if st.session_state.dataset is None:
 df = st.session_state.dataset.copy()
 cleaning_engine = DataCleaningEngine()
 visualizer = DataVisualizer()
+
+# Initialize weights manager
+if 'weights_manager' not in st.session_state:
+    st.session_state.weights_manager = SurveyWeightsManager()
+weights_manager = st.session_state.weights_manager
 
 st.markdown("""
 Apply context-specific cleaning methods to individual columns with full control and preview capabilities.

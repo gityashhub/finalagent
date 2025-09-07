@@ -299,16 +299,14 @@ if st.session_state.ai_conversation:
             
             with action_cols[1]:
                 if st.button("❓ Follow-up", key=f"followup_{len(st.session_state.ai_conversation)-i-1}"):
-                    st.session_state.ai_question_input = "Can you elaborate on this?"
-                    st.rerun()
+                    st.info("💬 Type your follow-up question in the text box above!")
             
             with action_cols[2]:
                 if st.button("🔄 Rephrase", key=f"rephrase_{len(st.session_state.ai_conversation)-i-1}"):
                     if len(st.session_state.ai_conversation) >= 2:
                         # Get the user question that led to this response
                         user_msg = st.session_state.ai_conversation[-(i+2)]['message'] if i < len(st.session_state.ai_conversation)-1 else ""
-                        st.session_state.ai_question_input = f"Please rephrase your answer to: {user_msg}"
-                        st.rerun()
+                        st.info(f"💬 Ask the AI: 'Please rephrase your answer to: {user_msg[:50]}...'")
             
             with action_cols[3]:
                 if st.button("📋 Copy", key=f"copy_{len(st.session_state.ai_conversation)-i-1}"):
