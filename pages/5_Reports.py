@@ -76,10 +76,15 @@ with generate_cols[0]:
         else:
             with st.spinner("Generating reports..."):
                 try:
-                    # Generate all requested reports
+                    # Generate comprehensive reports with weights integration
+                    weights_manager = st.session_state.get('weights_manager')
+                    violations = st.session_state.get('inter_column_violations', {})
+                    
                     reports = report_generator.generate_complete_report(
                         df, 
-                        original_df, 
+                        original_df,
+                        weights_manager=weights_manager,
+                        violations=violations, 
                         st.session_state.column_analysis, 
                         st.session_state.cleaning_history
                     )
