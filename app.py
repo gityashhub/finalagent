@@ -35,8 +35,8 @@ def main():
     
     st.sidebar.markdown("""
     1. **Data Upload** - Upload and configure your dataset
-    2. **Column Analysis** - Detailed analysis of individual columns
-    3. **Cleaning Wizard** - Apply cleaning methods with guidance
+    2. **Column Analysis** - Detailed analysis of individual columns  
+    3. **Cleaning Wizard** - Apply cleaning methods with integrated weights
     4. **AI Assistant** - Get expert advice and explanations
     5. **Reports** - Generate comprehensive cleaning reports
     """)
