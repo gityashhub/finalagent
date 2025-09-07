@@ -41,7 +41,7 @@ class DataCleaningEngine:
     
     def apply_cleaning_method(self, df: pd.DataFrame, column: str, 
                             method_type: str, method_name: str, 
-                            parameters: Dict[str, Any] = None) -> Tuple[pd.Series, Dict[str, Any]]:
+                            parameters: Optional[Dict[str, Any]] = None) -> Tuple[pd.Series, Dict[str, Any]]:
         """Apply a specific cleaning method to a column"""
         if method_type not in self.cleaning_methods:
             raise ValueError(f"Unknown method type: {method_type}")
@@ -106,7 +106,7 @@ class DataCleaningEngine:
             raise ValueError("Mean imputation only applicable to numeric columns")
         
         mean_value = series.mean()
-        if pd.isna(mean_value):
+        if pd.isna(mean_value) or mean_value is None:
             raise ValueError("Cannot calculate mean - all values are missing")
         
         filled_series = series.fillna(mean_value)
@@ -127,7 +127,7 @@ class DataCleaningEngine:
             raise ValueError("Median imputation only applicable to numeric columns")
         
         median_value = series.median()
-        if pd.isna(median_value):
+        if pd.isna(median_value) or median_value is None:
             raise ValueError("Cannot calculate median - all values are missing")
         
         filled_series = series.fillna(median_value)
@@ -241,6 +241,11 @@ class DataCleaningEngine:
         if not pd.api.types.is_numeric_dtype(series):
             raise ValueError("Interpolation only applicable to numeric columns")
         
+        # Ensure method is a valid interpolation method
+        valid_methods = ['linear', 'time', 'index', 'values', 'nearest', 'zero', 'slinear', 'quadratic', 'cubic']
+        if method not in valid_methods:
+            method = 'linear'
+        
         interpolated_series = series.interpolate(method=method)
         
         # Handle remaining NaNs at the beginning or end
@@ -304,7 +309,10 @@ class DataCleaningEngine:
         X_missing = predictor_data[missing_mask]
         
         # Only predict if we have complete predictor data
-        can_predict = X_missing.notna().all(axis=1)
+        if len(X_missing) > 0:
+            can_predict = X_missing.notna().all(axis=1)
+        else:
+            can_predict = pd.Series([], dtype=bool)
         
         predicted_values = model.predict(X_missing[can_predict])
         
@@ -508,7 +516,7 @@ class DataCleaningEngine:
             
             # Try to convert to numeric
             numeric_converted = pd.to_numeric(non_null_series, errors='coerce')
-            if numeric_converted.notna().sum() / len(non_null_series) > 0.8:
+            if len(non_null_series) > 0 and numeric_converted.notna().sum() / len(non_null_series) > 0.8:
                 target_type = 'numeric'
             else:
                 target_type = 'string'

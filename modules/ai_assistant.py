@@ -10,7 +10,7 @@ class AIAssistant:
     """AI-powered conversational assistant for data cleaning guidance"""
     
     def __init__(self):
-        self.groq_api_key = os.getenv("GROQ_API_KEY", "gsk_default_key")
+        self.groq_api_key = os.getenv("GROQ_API_KEY")
         self.client = None
         self.conversation_history = []
         self.context = {}
