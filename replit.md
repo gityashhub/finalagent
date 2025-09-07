@@ -66,12 +66,24 @@ For full AI functionality, set the `GROQ_API_KEY` secret:
 - **Environment**: Optimized for statistical agency workflows
 
 ## Recent Changes
-- **2025-09-07**: Initial project import and Replit environment setup
-  - Configured Python dependencies via UV
-  - Set up Streamlit workflow on port 5000
-  - Verified application functionality
-  - Configured autoscale deployment
-  - AI assistant ready for GROQ_API_KEY configuration
+- **2025-09-07**: Major enhancements and Replit environment setup
+  - **Enhanced Rule-Based Validation**: Implemented comprehensive inter-column violation detection throughout the cleaning process
+    - Demographic consistency checks (gender vs title, age vs retirement)
+    - Logical sequence validation (employment dates, date ranges)
+    - Survey-specific business rules (household vs individual income)
+    - Mathematical relationship validation (totals vs components)
+  - **Integrated Survey Weights**: Survey weights now integrated throughout the workflow instead of as a final step
+    - Weighted statistics calculated during cleaning operations
+    - Impact assessment comparing weighted vs unweighted results
+    - Weight-aware cleaning methods and imputation
+  - **Comprehensive Report Generation**: Created PDF/HTML report system with standardized formats
+    - Weighted and unweighted summaries with statistical comparisons
+    - Complete workflow logs and audit trails
+    - Rule violation analysis and impact documentation
+    - Downloadable reports formatted for statistical agency requirements
+  - **Workflow Optimization**: Smooth end-to-end workflow with proper weight and validation integration
+  - **Technical Setup**: Configured Python dependencies via UV, Streamlit workflow on port 5000, autoscale deployment
+  - **AI Assistant**: Enhanced with Groq API integration (GROQ_API_KEY configured)
 
 ## User Preferences
 - Clean, professional interface suitable for statistical agencies
