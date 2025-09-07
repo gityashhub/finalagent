@@ -19,6 +19,39 @@ if st.session_state.dataset is None:
     st.stop()
 
 df = st.session_state.dataset
+
+# Check for inter-column violations when page loads
+if 'inter_column_violations' not in st.session_state:
+    with st.spinner("🔄 Running inter-column validation checks..."):
+        analyzer = st.session_state.data_analyzer
+        violations = analyzer.detect_inter_column_violations(df)
+        st.session_state.inter_column_violations = violations
+        
+        if violations['total_violations'] > 0:
+            severity_color = {'low': '🟢', 'moderate': '🟡', 'high': '🔴'}[violations['severity']]
+            st.warning(f"{severity_color} **Inter-column violations detected:** {violations['total_violations']} violations found ({violations['severity']} severity)")
+
+# Display inter-column violations summary if any
+if st.session_state.get('inter_column_violations', {}).get('total_violations', 0) > 0:
+    violations = st.session_state.inter_column_violations
+    with st.expander(f"⚠️ Inter-Column Violations Summary ({violations['total_violations']} violations)", expanded=False):
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("Total Violations", violations['total_violations'])
+        with col2:
+            severity_emoji = {'low': '🟢', 'moderate': '🟡', 'high': '🔴'}[violations['severity']]
+            st.metric("Severity", f"{severity_emoji} {violations['severity'].title()}")
+        
+        if violations['violation_types']:
+            st.subheader("Violation Types Found:")
+            for vtype in violations['violation_types']:
+                st.write(f"• {vtype}")
+        
+        if violations.get('rule_checks'):
+            st.subheader("Detailed Rule Checks:")
+            for rule in violations['rule_checks']:
+                st.write(f"**{rule['rule_type'].replace('_', ' ').title()}:** {rule['description']} ({rule['violations']} violations)")
+                st.caption(f"Columns involved: {', '.join(rule['columns'])}")
 analyzer = ColumnAnalyzer()
 visualizer = DataVisualizer()
 

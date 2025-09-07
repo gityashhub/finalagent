@@ -11,7 +11,13 @@ from datetime import datetime
 # Initialize session state
 initialize_session_state()
 
-st.title("📊 Data Cleaning Reports")
+st.title("📊 Comprehensive Report Generation")
+
+st.markdown("""
+Generate standardized reports in PDF or HTML format that summarize the data cleaning process. 
+Reports include weighted/unweighted summaries, workflow logs, violation analysis, and visualizations 
+formatted according to official statistical release requirements.
+""")
 
 # Check if dataset is loaded
 if st.session_state.dataset is None:
@@ -20,13 +26,14 @@ if st.session_state.dataset is None:
 
 df = st.session_state.dataset
 original_df = st.session_state.original_dataset
-report_generator = ReportGenerator()
-visualizer = DataVisualizer()
 
-st.markdown("""
-Generate comprehensive reports documenting your data cleaning process, analysis results, and methodology.
-These reports ensure reproducibility and provide audit trails for your cleaning operations.
-""")
+# Initialize report generator with weights manager
+weights_manager = st.session_state.get('weights_manager')
+if weights_manager:
+    st.session_state.report_generator.weights_manager = weights_manager
+
+report_generator = st.session_state.report_generator
+visualizer = DataVisualizer()
 
 # Report generation controls
 st.subheader("1. Report Configuration")

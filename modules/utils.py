@@ -23,6 +23,19 @@ def initialize_session_state():
         st.session_state.redo_stack = []
     if 'ai_context' not in st.session_state:
         st.session_state.ai_context = {}
+    if 'inter_column_violations' not in st.session_state:
+        st.session_state.inter_column_violations = {}
+    if 'weights_manager' not in st.session_state:
+        st.session_state.weights_manager = None
+    if 'cleaning_engine' not in st.session_state:
+        from modules.cleaning_engine import DataCleaningEngine
+        st.session_state.cleaning_engine = DataCleaningEngine()
+    if 'data_analyzer' not in st.session_state:
+        from modules.data_analyzer import ColumnAnalyzer
+        st.session_state.data_analyzer = ColumnAnalyzer()
+    if 'report_generator' not in st.session_state:
+        from modules.report_generator import ReportGenerator
+        st.session_state.report_generator = ReportGenerator()
 
 def detect_column_types(df: pd.DataFrame) -> Dict[str, str]:
     """Enhanced column type detection beyond basic pandas dtypes"""
