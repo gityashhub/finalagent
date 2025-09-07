@@ -565,7 +565,7 @@ class ColumnAnalyzer:
                     violations['affected_rows'].update(df.index[invalid_edu].tolist())
     
     def _check_mathematical_relationships(self, df: pd.DataFrame, violations: Dict[str, Any]) -> None:
-        \"\"\"Check mathematical relationships between columns\"\"\"
+        """Check mathematical relationships between columns"""
         # Total vs sum of parts
         total_cols = [col for col in df.columns if 'total' in col.lower()]
         
