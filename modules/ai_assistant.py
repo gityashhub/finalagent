@@ -17,8 +17,12 @@ class AIAssistant:
         
         # Initialize Groq client
         try:
-            self.client = Groq(api_key=self.groq_api_key)
-            self.model = "llama-3.1-8b-instant"
+            if self.groq_api_key:
+                self.client = Groq(api_key=self.groq_api_key)
+                self.model = "llama-3.1-8b-instant"
+            else:
+                st.warning("⚠️ GROQ_API_KEY not found. AI assistant will not be available.")
+                self.client = None
         except Exception as e:
             st.error(f"Error initializing Groq client: {str(e)}")
             self.client = None
@@ -34,12 +38,17 @@ class AIAssistant:
             'timestamp': datetime.now().isoformat()
         }
     
-    def ask_question(self, question: str, column_specific: Optional[str] = None) -> str:
+    def ask_question(self, question: str, column_specific: Optional[str] = None, 
+                   current_data_state: Optional[Dict[str, Any]] = None) -> str:
         """Ask the AI assistant a question with current context"""
         if not self.client:
-            return "AI assistant is not available. Please check your API configuration."
+            return "AI assistant is not available. Please set your GROQ_API_KEY in the secrets."
         
         try:
+            # Update context with current data state if provided
+            if current_data_state:
+                self._update_context_with_current_state(current_data_state)
+            
             # Build context-aware prompt
             system_prompt = self._build_system_prompt(column_specific)
             user_message = self._build_user_message(question, column_specific)
@@ -68,6 +77,20 @@ class AIAssistant:
             
         except Exception as e:
             return f"Error getting AI response: {str(e)}"
+    
+    def _update_context_with_current_state(self, current_state: Dict[str, Any]):
+        """Update AI context with current application state"""
+        if 'current_dataset_stats' in current_state:
+            self.context['current_dataset_stats'] = current_state['current_dataset_stats']
+        
+        if 'cleaning_history' in current_state:
+            self.context['cleaning_history'] = current_state['cleaning_history']
+        
+        if 'inter_column_violations' in current_state:
+            self.context['inter_column_violations'] = current_state['inter_column_violations']
+        
+        if 'weights_info' in current_state:
+            self.context['weights_info'] = current_state['weights_info']
     
     def _build_system_prompt(self, column_specific: Optional[str] = None) -> str:
         """Build context-aware system prompt"""

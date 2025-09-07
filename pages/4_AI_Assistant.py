@@ -218,15 +218,32 @@ if send_button and question_input.strip():
     # Get AI response
     with st.spinner("🤖 Thinking..."):
         try:
+            # Prepare current data state
+            current_data_state = {
+                'current_dataset_stats': {
+                    'shape': df.shape,
+                    'missing_total': df.isnull().sum().sum(),
+                    'columns_cleaned': len(st.session_state.get('cleaning_history', {}))
+                },
+                'cleaning_history': st.session_state.get('cleaning_history', {}),
+                'weights_info': getattr(st.session_state.get('weights_manager', None), 'weights_metadata', {})
+            }
+            
+            # Add inter-column violations if available
+            if hasattr(st.session_state, 'inter_column_violations'):
+                current_data_state['inter_column_violations'] = st.session_state.inter_column_violations
+            
             if context_mode == 'column_specific' and context_column:
                 # Set specific column context
                 if context_column in st.session_state.column_analysis:
                     column_analysis = st.session_state.column_analysis[context_column]
                     assistant.set_context(dataset_info, column_analysis)
                 
-                response = assistant.ask_question(question_input.strip(), context_column)
+                response = assistant.ask_question(question_input.strip(), context_column, current_data_state)
+            elif context_mode == 'workflow':
+                response = assistant.get_workflow_guidance(st.session_state.column_analysis)
             else:
-                response = assistant.ask_question(question_input.strip())
+                response = assistant.ask_question(question_input.strip(), None, current_data_state)
             
             # Add AI response to conversation
             st.session_state.ai_conversation.append({

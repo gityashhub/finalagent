@@ -355,6 +355,102 @@ class ColumnAnalyzer:
             
         return violations
     
+    def detect_inter_column_violations(self, df: pd.DataFrame) -> Dict[str, Any]:
+        """Detect violations based on inter-column dependencies"""
+        violations = {
+            'total_violations': 0,
+            'violation_types': [],
+            'details': {},
+            'severity': 'low'
+        }
+        
+        # Check age vs birth_year consistency
+        age_cols = [col for col in df.columns if 'age' in col.lower()]
+        birth_year_cols = [col for col in df.columns if 'birth_year' in col.lower() or 'birth' in col.lower()]
+        
+        if age_cols and birth_year_cols:
+            from datetime import datetime
+            current_year = datetime.now().year
+            
+            for age_col in age_cols:
+                for birth_col in birth_year_cols:
+                    if pd.api.types.is_numeric_dtype(df[age_col]) and pd.api.types.is_numeric_dtype(df[birth_col]):
+                        # Calculate expected age from birth year
+                        expected_ages = current_year - df[birth_col]
+                        age_diff = abs(df[age_col] - expected_ages)
+                        # Allow for 1-2 years difference (depending on birth month)
+                        inconsistent_mask = age_diff > 2
+                        
+                        if inconsistent_mask.sum() > 0:
+                            violations['total_violations'] += inconsistent_mask.sum()
+                            violations['violation_types'].append(f'Age-birth year inconsistency ({age_col} vs {birth_col})')
+                            violations['details'][f'{age_col}_{birth_col}_inconsistency'] = {
+                                'count': inconsistent_mask.sum(),
+                                'rule': 'Age should match birth year within 1-2 years',
+                                'affected_rows': df.index[inconsistent_mask].tolist()[:10]
+                            }
+        
+        # Check start_date vs end_date consistency
+        start_cols = [col for col in df.columns if 'start' in col.lower() and ('date' in col.lower() or 'time' in col.lower())]
+        end_cols = [col for col in df.columns if 'end' in col.lower() and ('date' in col.lower() or 'time' in col.lower())]
+        
+        for start_col in start_cols:
+            for end_col in end_cols:
+                try:
+                    start_dates = pd.to_datetime(df[start_col], errors='coerce')
+                    end_dates = pd.to_datetime(df[end_col], errors='coerce')
+                    
+                    # Check if end dates are before start dates
+                    invalid_dates = (end_dates < start_dates) & start_dates.notna() & end_dates.notna()
+                    
+                    if invalid_dates.sum() > 0:
+                        violations['total_violations'] += invalid_dates.sum()
+                        violations['violation_types'].append(f'End date before start date ({start_col} vs {end_col})')
+                        violations['details'][f'{start_col}_{end_col}_date_logic'] = {
+                            'count': invalid_dates.sum(),
+                            'rule': 'End date should be after start date',
+                            'affected_rows': df.index[invalid_dates].tolist()[:10]
+                        }
+                except:
+                    pass  # Skip if date conversion fails
+        
+        # Check income vs education level consistency
+        income_cols = [col for col in df.columns if any(word in col.lower() for word in ['income', 'salary', 'wage'])]
+        education_cols = [col for col in df.columns if 'education' in col.lower() or 'degree' in col.lower()]
+        
+        if income_cols and education_cols:
+            for income_col in income_cols:
+                for edu_col in education_cols:
+                    if pd.api.types.is_numeric_dtype(df[income_col]) and df[edu_col].dtype == 'object':
+                        # Simple check: higher education should generally correlate with higher income
+                        education_levels = df[edu_col].str.lower()
+                        high_education = education_levels.str.contains('master|phd|doctorate|graduate', na=False)
+                        low_education = education_levels.str.contains('high school|elementary|primary', na=False)
+                        
+                        high_edu_low_income = high_education & (df[income_col] < df[income_col].quantile(0.25))
+                        low_edu_high_income = low_education & (df[income_col] > df[income_col].quantile(0.75))
+                        
+                        total_anomalies = high_edu_low_income.sum() + low_edu_high_income.sum()
+                        if total_anomalies > 0:
+                            violations['total_violations'] += total_anomalies
+                            violations['violation_types'].append(f'Education-income mismatch ({edu_col} vs {income_col})')
+                            violations['details'][f'{edu_col}_{income_col}_mismatch'] = {
+                                'count': total_anomalies,
+                                'rule': 'Education level and income should generally correlate',
+                                'high_edu_low_income': high_edu_low_income.sum(),
+                                'low_edu_high_income': low_edu_high_income.sum()
+                            }
+        
+        # Determine overall severity
+        if violations['total_violations'] > len(df) * 0.1:
+            violations['severity'] = 'high'
+        elif violations['total_violations'] > len(df) * 0.05:
+            violations['severity'] = 'moderate'
+        else:
+            violations['severity'] = 'low'
+        
+        return violations
+    
     def _check_numeric_range_violations(self, series: pd.Series, column_name: str) -> Dict[str, Any]:
         """Check for numeric range violations based on column type inference"""
         violations = {'total_violations': 0, 'violation_types': [], 'details': {}}
