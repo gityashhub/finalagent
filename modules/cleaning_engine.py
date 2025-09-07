@@ -8,9 +8,10 @@ import warnings
 warnings.filterwarnings('ignore')
 
 class DataCleaningEngine:
-    """Advanced data cleaning engine with column-specific methods"""
+    """Advanced data cleaning engine with column-specific methods and weighted operations"""
     
-    def __init__(self):
+    def __init__(self, weights_manager=None):
+        self.weights_manager = weights_manager
         self.cleaning_methods = {
             'missing_values': {
                 'mean_imputation': self._mean_imputation,
@@ -41,7 +42,8 @@ class DataCleaningEngine:
     
     def apply_cleaning_method(self, df: pd.DataFrame, column: str, 
                             method_type: str, method_name: str, 
-                            parameters: Optional[Dict[str, Any]] = None) -> Tuple[pd.Series, Dict[str, Any]]:
+                            parameters: Optional[Dict[str, Any]] = None,
+                            use_weights: bool = False) -> Tuple[pd.Series, Dict[str, Any]]:
         """Apply a specific cleaning method to a column"""
         if method_type not in self.cleaning_methods:
             raise ValueError(f"Unknown method type: {method_type}")
@@ -54,12 +56,20 @@ class DataCleaningEngine:
         
         try:
             cleaning_func = self.cleaning_methods[method_type][method_name]
+            
+            # Pass weight information to cleaning function if available
+            if use_weights and self.weights_manager and self.weights_manager.weights_column:
+                parameters['weights'] = df[self.weights_manager.weights_column]
+                parameters['use_weights'] = True
+            
             cleaned_series, metadata = cleaning_func(df, column, **parameters)
             
-            # Calculate impact statistics
-            impact_stats = self._calculate_impact_stats(original_series, cleaned_series)
+            # Calculate impact statistics (both weighted and unweighted)
+            impact_stats = self._calculate_impact_stats(original_series, cleaned_series, 
+                                                      df.get(self.weights_manager.weights_column) if use_weights and self.weights_manager else None)
             metadata['impact_stats'] = impact_stats
             metadata['success'] = True
+            metadata['weighted_operation'] = use_weights
             
             return cleaned_series, metadata
             
@@ -71,8 +81,8 @@ class DataCleaningEngine:
                 'method_name': method_name
             }
     
-    def _calculate_impact_stats(self, original: pd.Series, cleaned: pd.Series) -> Dict[str, Any]:
-        """Calculate impact statistics of cleaning operation"""
+    def _calculate_impact_stats(self, original: pd.Series, cleaned: pd.Series, weights: Optional[pd.Series] = None) -> Dict[str, Any]:
+        """Calculate impact statistics of cleaning operation with optional weighting"""
         stats = {
             'rows_affected': (original != cleaned).sum(),
             'percentage_changed': ((original != cleaned).sum() / len(original)) * 100,
@@ -86,6 +96,7 @@ class DataCleaningEngine:
             cleaned_clean = cleaned.dropna()
             
             if len(original_clean) > 0 and len(cleaned_clean) > 0:
+                # Unweighted statistics
                 stats.update({
                     'mean_before': original_clean.mean(),
                     'mean_after': cleaned_clean.mean(),
@@ -94,6 +105,23 @@ class DataCleaningEngine:
                     'median_before': original_clean.median(),
                     'median_after': cleaned_clean.median()
                 })
+                
+                # Weighted statistics if weights are provided
+                if weights is not None:
+                    weights_clean_orig = weights[original.notna()]
+                    weights_clean_new = weights[cleaned.notna()]
+                    
+                    if len(weights_clean_orig) > 0 and len(weights_clean_new) > 0:
+                        weighted_mean_before = np.average(original_clean, weights=weights_clean_orig)
+                        weighted_mean_after = np.average(cleaned_clean, weights=weights_clean_new)
+                        
+                        stats.update({
+                            'weighted_mean_before': weighted_mean_before,
+                            'weighted_mean_after': weighted_mean_after,
+                            'weighted_mean_change': weighted_mean_after - weighted_mean_before,
+                            'total_weight_before': weights_clean_orig.sum(),
+                            'total_weight_after': weights_clean_new.sum()
+                        })
         
         return stats
     

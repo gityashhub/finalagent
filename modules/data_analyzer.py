@@ -361,7 +361,9 @@ class ColumnAnalyzer:
             'total_violations': 0,
             'violation_types': [],
             'details': {},
-            'severity': 'low'
+            'severity': 'low',
+            'affected_rows': set(),
+            'rule_checks': []
         }
         
         # Check age vs birth_year consistency
@@ -441,15 +443,158 @@ class ColumnAnalyzer:
                                 'low_edu_high_income': low_edu_high_income.sum()
                             }
         
+        # Add comprehensive rule checks
+        self._check_demographic_consistency(df, violations)
+        self._check_logical_sequences(df, violations)
+        self._check_survey_specific_rules(df, violations)
+        self._check_mathematical_relationships(df, violations)
+        
+        # Convert affected_rows set to list for JSON serialization
+        violations['affected_rows'] = list(violations['affected_rows'])
+        
         # Determine overall severity
-        if violations['total_violations'] > len(df) * 0.1:
+        total_rows = len(df)
+        if violations['total_violations'] > total_rows * 0.1:
             violations['severity'] = 'high'
-        elif violations['total_violations'] > len(df) * 0.05:
+        elif violations['total_violations'] > total_rows * 0.05:
             violations['severity'] = 'moderate'
         else:
             violations['severity'] = 'low'
         
         return violations
+    
+    def _check_demographic_consistency(self, df: pd.DataFrame, violations: Dict[str, Any]) -> None:
+        """Check demographic consistency rules"""
+        # Gender vs title consistency
+        gender_cols = [col for col in df.columns if any(word in col.lower() for word in ['gender', 'sex'])]
+        title_cols = [col for col in df.columns if any(word in col.lower() for word in ['title', 'mr', 'mrs', 'ms'])]
+        
+        for gender_col in gender_cols:
+            for title_col in title_cols:
+                if df[gender_col].dtype == 'object' and df[title_col].dtype == 'object':
+                    # Check for Mr. with Female or Mrs./Ms. with Male
+                    male_indicators = df[gender_col].str.lower().str.contains('male|m', na=False)
+                    female_indicators = df[gender_col].str.lower().str.contains('female|f', na=False)
+                    mr_title = df[title_col].str.lower().str.contains('mr', na=False)
+                    mrs_ms_title = df[title_col].str.lower().str.contains('mrs|ms', na=False)
+                    
+                    inconsistent = (male_indicators & mrs_ms_title) | (female_indicators & mr_title)
+                    
+                    if inconsistent.sum() > 0:
+                        violations['total_violations'] += inconsistent.sum()
+                        violations['violation_types'].append(f'Gender-title mismatch ({gender_col} vs {title_col})')
+                        violations['affected_rows'].update(df.index[inconsistent].tolist())
+                        violations['rule_checks'].append({
+                            'rule_type': 'demographic_consistency',
+                            'columns': [gender_col, title_col],
+                            'violations': inconsistent.sum(),
+                            'description': 'Gender and title should be consistent'
+                        })
+        
+        # Age vs retirement status
+        age_cols = [col for col in df.columns if 'age' in col.lower()]
+        retirement_cols = [col for col in df.columns if any(word in col.lower() for word in ['retired', 'retirement'])]
+        
+        for age_col in age_cols:
+            for retire_col in retirement_cols:
+                if pd.api.types.is_numeric_dtype(df[age_col]) and df[retire_col].dtype == 'object':
+                    young_retired = (df[age_col] < 50) & df[retire_col].str.lower().str.contains('yes|retired|true', na=False)
+                    old_working = (df[age_col] > 70) & df[retire_col].str.lower().str.contains('no|working|false', na=False)
+                    
+                    inconsistent = young_retired | old_working
+                    if inconsistent.sum() > 0:
+                        violations['total_violations'] += inconsistent.sum()
+                        violations['violation_types'].append(f'Age-retirement inconsistency ({age_col} vs {retire_col})')
+                        violations['affected_rows'].update(df.index[inconsistent].tolist())
+    
+    def _check_logical_sequences(self, df: pd.DataFrame, violations: Dict[str, Any]) -> None:
+        """Check logical sequence rules"""
+        # Employment start before end dates
+        start_employment_cols = [col for col in df.columns if any(word in col.lower() for word in ['start', 'begin']) and 'employ' in col.lower()]
+        end_employment_cols = [col for col in df.columns if any(word in col.lower() for word in ['end', 'finish']) and 'employ' in col.lower()]
+        
+        for start_col in start_employment_cols:
+            for end_col in end_employment_cols:
+                try:
+                    start_dates = pd.to_datetime(df[start_col], errors='coerce')
+                    end_dates = pd.to_datetime(df[end_col], errors='coerce')
+                    
+                    invalid_sequence = (end_dates < start_dates) & start_dates.notna() & end_dates.notna()
+                    
+                    if invalid_sequence.sum() > 0:
+                        violations['total_violations'] += invalid_sequence.sum()
+                        violations['violation_types'].append(f'Invalid employment sequence ({start_col} vs {end_col})')
+                        violations['affected_rows'].update(df.index[invalid_sequence].tolist())
+                        violations['rule_checks'].append({
+                            'rule_type': 'logical_sequence',
+                            'columns': [start_col, end_col],
+                            'violations': invalid_sequence.sum(),
+                            'description': 'Employment end date should be after start date'
+                        })
+                except:
+                    pass
+    
+    def _check_survey_specific_rules(self, df: pd.DataFrame, violations: Dict[str, Any]) -> None:
+        """Check survey-specific business rules"""
+        # Household income vs individual income
+        household_income_cols = [col for col in df.columns if 'household' in col.lower() and 'income' in col.lower()]
+        individual_income_cols = [col for col in df.columns if 'income' in col.lower() and 'household' not in col.lower()]
+        
+        for household_col in household_income_cols:
+            for individual_col in individual_income_cols:
+                if pd.api.types.is_numeric_dtype(df[household_col]) and pd.api.types.is_numeric_dtype(df[individual_col]):
+                    # Individual income should not exceed household income
+                    invalid_income = (df[individual_col] > df[household_col]) & df[household_col].notna() & df[individual_col].notna()
+                    
+                    if invalid_income.sum() > 0:
+                        violations['total_violations'] += invalid_income.sum()
+                        violations['violation_types'].append(f'Individual income exceeds household ({individual_col} vs {household_col})')
+                        violations['affected_rows'].update(df.index[invalid_income].tolist())
+        
+        # Education level progression
+        education_cols = [col for col in df.columns if 'education' in col.lower() or 'degree' in col.lower()]
+        for edu_col in education_cols:
+            if df[edu_col].dtype == 'object':
+                # Check for impossible education progressions
+                edu_values = df[edu_col].str.lower()
+                # This is a simplified check - would need domain-specific rules
+                invalid_edu = edu_values.str.contains('phd.*high school|doctorate.*elementary', na=False)
+                if invalid_edu.sum() > 0:
+                    violations['total_violations'] += invalid_edu.sum()
+                    violations['violation_types'].append(f'Invalid education progression in {edu_col}')
+                    violations['affected_rows'].update(df.index[invalid_edu].tolist())
+    
+    def _check_mathematical_relationships(self, df: pd.DataFrame, violations: Dict[str, Any]) -> None:
+        \"\"\"Check mathematical relationships between columns\"\"\"
+        # Total vs sum of parts
+        total_cols = [col for col in df.columns if 'total' in col.lower()]
+        
+        for total_col in total_cols:
+            if pd.api.types.is_numeric_dtype(df[total_col]):
+                # Find related component columns
+                base_name = total_col.lower().replace('total', '').replace('_', '').strip()
+                related_cols = [col for col in df.columns 
+                              if base_name in col.lower() and col != total_col and pd.api.types.is_numeric_dtype(df[col])]
+                
+                if len(related_cols) >= 2:  # Need at least 2 components
+                    calculated_total = df[related_cols].sum(axis=1)
+                    # Allow for small rounding differences
+                    tolerance = df[total_col].std() * 0.01 if df[total_col].std() > 0 else 1
+                    significant_diff = abs(df[total_col] - calculated_total) > tolerance
+                    
+                    valid_data = df[total_col].notna() & calculated_total.notna()
+                    violations_mask = significant_diff & valid_data
+                    
+                    if violations_mask.sum() > 0:
+                        violations['total_violations'] += violations_mask.sum()
+                        violations['violation_types'].append(f'Total does not match sum of components ({total_col})')
+                        violations['affected_rows'].update(df.index[violations_mask].tolist())
+                        violations['rule_checks'].append({
+                            'rule_type': 'mathematical_relationship',
+                            'columns': [total_col] + related_cols,
+                            'violations': violations_mask.sum(),
+                            'description': f'Total {total_col} should equal sum of {related_cols}'
+                        })
     
     def _check_numeric_range_violations(self, series: pd.Series, column_name: str) -> Dict[str, Any]:
         """Check for numeric range violations based on column type inference"""

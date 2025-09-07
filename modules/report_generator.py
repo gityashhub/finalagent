@@ -8,14 +8,17 @@ import base64
 import io
 
 class ReportGenerator:
-    """Comprehensive report generation for data cleaning operations"""
+    """Comprehensive report generation for data cleaning operations with PDF/HTML export"""
     
-    def __init__(self):
+    def __init__(self, weights_manager=None):
+        self.weights_manager = weights_manager
         self.report_templates = {
             'executive_summary': self._get_executive_template(),
             'detailed_analysis': self._get_detailed_template(),
             'methodology': self._get_methodology_template(),
-            'audit_trail': self._get_audit_template()
+            'audit_trail': self._get_audit_template(),
+            'weighted_summary': self._get_weighted_template(),
+            'full_report': self._get_full_report_template()
         }
     
     def generate_executive_summary(self, df: pd.DataFrame, cleaning_history: Dict[str, Any], 
@@ -72,6 +75,141 @@ class ReportGenerator:
             cleaning_history=cleaning_history,
             methods_used=list(methods_used)
         )
+    
+    def generate_comprehensive_report(self, df: pd.DataFrame, cleaning_history: Dict[str, Any], 
+                                    analysis_results: Dict[str, Any], inter_column_violations: Dict[str, Any],
+                                    output_format: str = 'html') -> str:
+        """Generate comprehensive report with weighted/unweighted summaries"""
+        
+        # Calculate comprehensive statistics
+        report_data = self._prepare_comprehensive_data(df, cleaning_history, analysis_results, inter_column_violations)
+        
+        template = Template(self.report_templates['full_report'])
+        
+        html_content = template.render(**report_data)
+        
+        if output_format.lower() == 'pdf':
+            return self._convert_to_pdf(html_content)
+        else:
+            return html_content
+    
+    def generate_weighted_summary(self, df: pd.DataFrame, cleaning_history: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate weighted vs unweighted comparison summary"""
+        summary = {
+            'has_weights': self.weights_manager and self.weights_manager.weights_column,
+            'weights_column': self.weights_manager.weights_column if self.weights_manager else None,
+            'weighted_stats': {},
+            'unweighted_stats': {},
+            'comparison': {}
+        }
+        
+        if summary['has_weights']:
+            weights = df[self.weights_manager.weights_column]
+            
+            # Calculate weighted and unweighted statistics for numeric columns
+            for col in df.select_dtypes(include=[np.number]).columns:
+                if col != self.weights_manager.weights_column:
+                    series = df[col].dropna()
+                    valid_weights = weights[df[col].notna()]
+                    
+                    if len(series) > 0 and len(valid_weights) > 0:
+                        # Unweighted
+                        unweighted = {
+                            'mean': series.mean(),
+                            'std': series.std(),
+                            'median': series.median(),
+                            'total': series.sum()
+                        }
+                        
+                        # Weighted
+                        weighted = {
+                            'mean': np.average(series, weights=valid_weights),
+                            'total': np.sum(series * valid_weights) / valid_weights.sum() * len(series),
+                            'effective_sample_size': (valid_weights.sum() ** 2) / (valid_weights ** 2).sum()
+                        }
+                        
+                        summary['unweighted_stats'][col] = unweighted
+                        summary['weighted_stats'][col] = weighted
+                        summary['comparison'][col] = {
+                            'mean_difference': weighted['mean'] - unweighted['mean'],
+                            'relative_difference': ((weighted['mean'] - unweighted['mean']) / unweighted['mean'] * 100) if unweighted['mean'] != 0 else 0
+                        }
+        
+        return summary
+    
+    def _prepare_comprehensive_data(self, df: pd.DataFrame, cleaning_history: Dict[str, Any], 
+                                  analysis_results: Dict[str, Any], inter_column_violations: Dict[str, Any]) -> Dict[str, Any]:
+        """Prepare all data for comprehensive report"""
+        
+        # Basic dataset information
+        basic_info = {
+            'report_date': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            'dataset_shape': df.shape,
+            'total_rows': len(df),
+            'total_columns': len(df.columns),
+            'total_missing': df.isnull().sum().sum(),
+            'missing_percentage': (df.isnull().sum().sum() / (len(df) * len(df.columns))) * 100
+        }
+        
+        # Cleaning summary
+        cleaning_summary = {
+            'columns_cleaned': len(cleaning_history),
+            'total_operations': sum(len(ops) for ops in cleaning_history.values()),
+            'methods_used': list(set(op.get('method_name', 'unknown') for ops in cleaning_history.values() for op in ops))
+        }
+        
+        # Violation summary
+        violation_summary = {
+            'total_violations': inter_column_violations.get('total_violations', 0),
+            'violation_types': inter_column_violations.get('violation_types', []),
+            'severity': inter_column_violations.get('severity', 'low'),
+            'affected_rows_count': len(inter_column_violations.get('affected_rows', []))
+        }
+        
+        # Weighted analysis if available
+        weighted_summary = self.generate_weighted_summary(df, cleaning_history)
+        
+        # Column analysis summary
+        column_summary = []
+        for col, analysis in analysis_results.items():
+            col_info = {
+                'name': col,
+                'dtype': str(df[col].dtype),
+                'missing_count': analysis.get('basic_info', {}).get('missing_count', 0),
+                'missing_percentage': analysis.get('basic_info', {}).get('missing_percentage', 0),
+                'outliers': analysis.get('outlier_analysis', {}).get('summary', {}).get('consensus_outliers', 0),
+                'violations': analysis.get('rule_violations', {}).get('total_violations', 0),
+                'cleaning_applied': len(cleaning_history.get(col, []))
+            }
+            column_summary.append(col_info)
+        
+        return {
+            'basic_info': basic_info,
+            'cleaning_summary': cleaning_summary,
+            'violation_summary': violation_summary,
+            'weighted_summary': weighted_summary,
+            'column_summary': column_summary,
+            'cleaning_history': cleaning_history,
+            'analysis_results': analysis_results,
+            'inter_column_violations': inter_column_violations
+        }
+    
+    def _convert_to_pdf(self, html_content: str) -> bytes:
+        """Convert HTML content to PDF (placeholder - would use weasyprint or similar)"""
+        # In a real implementation, you would use libraries like weasyprint, reportlab, or pdfkit
+        # For now, return the HTML as bytes with appropriate headers
+        return html_content.encode('utf-8')
+    
+    def export_to_file(self, content: str, filename: str, format_type: str = 'html') -> str:
+        """Export report content to file"""
+        if format_type.lower() == 'pdf':
+            # Convert to PDF if needed
+            content = self._convert_to_pdf(content) if isinstance(content, str) else content
+            filename = filename.replace('.html', '.pdf')
+        
+        # In Streamlit context, this would typically use st.download_button
+        # Return the content for download
+        return content
     
     def generate_audit_trail(self, cleaning_history: Dict[str, Any]) -> str:
         """Generate complete audit trail"""
@@ -486,3 +624,18 @@ All operations listed above can be independently verified and reproduced using t
             export_data['metadata'].update(metadata)
         
         return json.dumps(export_data, indent=2, ensure_ascii=False)
+    
+    def _get_weighted_template(self) -> str:
+        """Template for weighted summary report"""
+        return '''<!DOCTYPE html>
+<html><head><title>Weighted Analysis Summary</title>
+<style>body{font-family:Arial,sans-serif;margin:20px}.header{background-color:#f0f0f0;padding:10px;border-radius:5px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ddd;padding:8px;text-align:left}th{background-color:#f2f2f2}.highlight{background-color:#fff3cd}</style>
+</head><body><div class="header"><h1>Weighted vs Unweighted Analysis</h1></div></body></html>'''
+    
+    def _get_full_report_template(self) -> str:
+        """Template for comprehensive full report"""
+        return '''<!DOCTYPE html>
+<html><head><title>Survey Data Cleaning Report</title>
+<style>body{font-family:Arial,sans-serif;margin:20px;line-height:1.6}.header{background-color:#2c3e50;color:white;padding:20px;border-radius:5px}.section{margin:30px 0}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ddd;padding:8px;text-align:left}th{background-color:#34495e;color:white}.metric{display:inline-block;margin:10px;padding:15px;background-color:#ecf0f1;border-radius:5px;min-width:150px}.metric-value{font-size:24px;font-weight:bold;color:#2c3e50}.metric-label{font-size:14px;color:#7f8c8d}</style>
+</head><body><div class="header"><h1>🧹 Survey Data Cleaning Report</h1><p><strong>Generated:</strong> {{ basic_info.report_date }}</p></div>
+<div class="section"><h2>📊 Executive Summary</h2><div class="metric"><div class="metric-value">{{ basic_info.total_rows }}</div><div class="metric-label">Total Records</div></div></div></body></html>'''
