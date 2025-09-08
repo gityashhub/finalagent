@@ -253,22 +253,39 @@ if selected_column in st.session_state.column_analysis:
         
         outlier_analysis = analysis['outlier_analysis']
         
-        if 'method_results' not in outlier_analysis or not outlier_analysis['method_results']:
-            st.info("ℹ️ Outlier detection not applicable for this column type")
+        # Check if outlier detection was attempted and has valid results
+        method_results = outlier_analysis.get('method_results', {})
+        has_valid_results = method_results and any(
+            result.get('outlier_count', 0) > 0 or 'outlier_values' in result 
+            for result in method_results.values()
+        )
+        
+        if not method_results:
+            # No method results at all - not applicable for this column type
+            summary = outlier_analysis.get('summary', {})
+            reason = summary.get('analysis', 'Outlier detection not applicable for this column type')
+            st.info(f"ℹ️ {reason}")
         else:
-            method_results = outlier_analysis['method_results']
+            # Outlier detection was performed - show results even if no outliers found
             summary = outlier_analysis['summary']
             
-            # Summary metrics
-            severity_colors = {'high': 'red', 'moderate': 'orange', 'low': 'green'}
-            severity = summary.get('severity', 'low')
+            # Check if any outliers were actually found
+            total_outliers_found = sum(result.get('outlier_count', 0) for result in method_results.values())
             
-            st.markdown(f"""
-            **Outlier Severity:** <span style="color: {severity_colors[severity]}; font-weight: bold;">
-            {severity.upper()}</span>
-            """, unsafe_allow_html=True)
+            if total_outliers_found == 0:
+                st.success("✅ No outliers detected using any method")
+                st.write("Outlier detection was performed but no significant outliers were found.")
+            else:
+                # Summary metrics
+                severity_colors = {'high': 'red', 'moderate': 'orange', 'low': 'green'}
+                severity = summary.get('severity', 'low')
+                
+                st.markdown(f"""
+                **Outlier Severity:** <span style="color: {severity_colors[severity]}; font-weight: bold;">
+                {severity.upper()}</span>
+                """, unsafe_allow_html=True)
             
-            # Method comparison
+            # Always show method comparison table
             st.markdown("### Detection Methods Comparison")
             
             method_data = []
@@ -280,7 +297,7 @@ if selected_column in st.session_state.column_analysis:
                 })
             
             method_df = pd.DataFrame(method_data)
-            st.dataframe(method_df, width='stretch')
+            st.dataframe(method_df, use_container_width=True)
             
             # Detailed results for each method
             for method_key, results in method_results.items():
@@ -293,14 +310,21 @@ if selected_column in st.session_state.column_analysis:
                     if 'threshold' in results:
                         st.write(f"**Threshold:** {results['threshold']}")
                     
-                    if results['outlier_values']:
+                    if results.get('outlier_values'):
                         st.write("**Sample outlier values:**")
                         outlier_sample = results['outlier_values'][:10]  # Show first 10
                         st.write(", ".join([format_number(v) for v in outlier_sample]))
+                    elif results['outlier_count'] == 0:
+                        st.write("**No outlier values found by this method**")
             
-            # Outlier visualization
-            outlier_fig = visualizer.plot_outliers(df[selected_column], selected_column, outlier_analysis)
-            st.plotly_chart(outlier_fig, width='stretch')
+            # Outlier visualization (only if outliers were found)
+            if total_outliers_found > 0:
+                st.markdown("### Outlier Visualization")
+                try:
+                    outlier_fig = visualizer.plot_outliers(df[selected_column], selected_column, outlier_analysis)
+                    st.plotly_chart(outlier_fig, use_container_width=True)
+                except Exception as e:
+                    st.warning("Could not generate outlier visualization")
     
     with tab4:
         st.subheader("Distribution Analysis")
