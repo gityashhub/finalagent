@@ -448,6 +448,8 @@ class ColumnAnalyzer:
         self._check_logical_sequences(df, violations)
         self._check_survey_specific_rules(df, violations)
         self._check_mathematical_relationships(df, violations)
+        self._check_missing_data_patterns(df, violations)
+        self._check_conditional_dependencies(df, violations)
         
         # Convert affected_rows set to list for JSON serialization
         violations['affected_rows'] = list(violations['affected_rows'])
@@ -595,6 +597,125 @@ class ColumnAnalyzer:
                             'violations': violations_mask.sum(),
                             'description': f'Total {total_col} should equal sum of {related_cols}'
                         })
+    
+    def _check_missing_data_patterns(self, df: pd.DataFrame, violations: Dict[str, Any]) -> None:
+        """Check for suspicious missing data patterns across columns"""
+        # Check for columns that are always missing together
+        missing_matrix = df.isnull()
+        
+        # Find column pairs with high correlation in missingness
+        for i, col1 in enumerate(df.columns):
+            for col2 in df.columns[i+1:]:
+                if missing_matrix[col1].sum() > 0 and missing_matrix[col2].sum() > 0:
+                    # Calculate correlation between missing patterns
+                    missing_corr = missing_matrix[col1].corr(missing_matrix[col2])
+                    
+                    # High positive correlation in missingness might indicate systematic issues
+                    if missing_corr > 0.8:
+                        violations['total_violations'] += min(missing_matrix[col1].sum(), missing_matrix[col2].sum())
+                        violations['violation_types'].append(f'Correlated missing data pattern ({col1} vs {col2})')
+                        violations['rule_checks'].append({
+                            'rule_type': 'missing_data_pattern',
+                            'columns': [col1, col2],
+                            'correlation': missing_corr,
+                            'description': f'Columns {col1} and {col2} have highly correlated missing patterns'
+                        })
+        
+        # Check for columns that should not be missing when others are present
+        required_pairs = self._get_required_column_pairs(df.columns)
+        for primary_col, required_col in required_pairs:
+            if primary_col in df.columns and required_col in df.columns:
+                # When primary column has data, required column should also have data
+                primary_present = df[primary_col].notna()
+                required_missing = df[required_col].isna()
+                violation_mask = primary_present & required_missing
+                
+                if violation_mask.sum() > 0:
+                    violations['total_violations'] += violation_mask.sum()
+                    violations['violation_types'].append(f'Required data missing ({required_col} when {primary_col} present)')
+                    violations['affected_rows'].update(df.index[violation_mask].tolist())
+                    violations['rule_checks'].append({
+                        'rule_type': 'conditional_missing',
+                        'columns': [primary_col, required_col],
+                        'violations': violation_mask.sum(),
+                        'description': f'{required_col} should not be missing when {primary_col} has data'
+                    })
+    
+    def _check_conditional_dependencies(self, df: pd.DataFrame, violations: Dict[str, Any]) -> None:
+        """Check for conditional dependencies between columns"""
+        # Income vs employment status
+        income_cols = [col for col in df.columns if any(word in col.lower() for word in ['income', 'salary', 'wage'])]
+        employment_cols = [col for col in df.columns if any(word in col.lower() for word in ['employ', 'job', 'work'])]
+        
+        for income_col in income_cols:
+            for employ_col in employment_cols:
+                if pd.api.types.is_numeric_dtype(df[income_col]) and df[employ_col].dtype == 'object':
+                    # People with income should generally be employed
+                    has_income = df[income_col] > 0
+                    unemployed = df[employ_col].str.lower().str.contains('unemployed|not working|retired', na=False)
+                    
+                    contradiction = has_income & unemployed
+                    if contradiction.sum() > 0:
+                        violations['total_violations'] += contradiction.sum()
+                        violations['violation_types'].append(f'Income without employment ({income_col} vs {employ_col})')
+                        violations['affected_rows'].update(df.index[contradiction].tolist())
+        
+        # Family size vs number of children
+        family_cols = [col for col in df.columns if any(word in col.lower() for word in ['family_size', 'household_size'])]
+        children_cols = [col for col in df.columns if any(word in col.lower() for word in ['children', 'kids', 'child'])]
+        
+        for family_col in family_cols:
+            for children_col in children_cols:
+                if pd.api.types.is_numeric_dtype(df[family_col]) and pd.api.types.is_numeric_dtype(df[children_col]):
+                    # Number of children cannot exceed family size
+                    invalid_family = (df[children_col] > df[family_col]) & df[family_col].notna() & df[children_col].notna()
+                    
+                    if invalid_family.sum() > 0:
+                        violations['total_violations'] += invalid_family.sum()
+                        violations['violation_types'].append(f'Children exceed family size ({children_col} vs {family_col})')
+                        violations['affected_rows'].update(df.index[invalid_family].tolist())
+        
+        # Marital status vs age
+        marital_cols = [col for col in df.columns if any(word in col.lower() for word in ['marital', 'married', 'spouse'])]
+        age_cols = [col for col in df.columns if 'age' in col.lower()]
+        
+        for marital_col in marital_cols:
+            for age_col in age_cols:
+                if df[marital_col].dtype == 'object' and pd.api.types.is_numeric_dtype(df[age_col]):
+                    # Very young people should not be married
+                    married = df[marital_col].str.lower().str.contains('married|spouse', na=False)
+                    very_young = df[age_col] < 16
+                    
+                    unlikely_married = married & very_young
+                    if unlikely_married.sum() > 0:
+                        violations['total_violations'] += unlikely_married.sum()
+                        violations['violation_types'].append(f'Unlikely marriage age ({age_col} vs {marital_col})')
+                        violations['affected_rows'].update(df.index[unlikely_married].tolist())
+    
+    def _get_required_column_pairs(self, columns: List[str]) -> List[Tuple[str, str]]:
+        """Get pairs of columns where one requires the other to be present"""
+        pairs = []
+        column_list = list(columns)
+        
+        # Common required pairs
+        required_patterns = [
+            ('email', 'phone'),  # If email exists, phone might be required
+            ('first_name', 'last_name'),  # First name requires last name
+            ('street', 'city'),  # Street address requires city
+            ('start_date', 'end_date'),  # Start date might require end date
+            ('income', 'employment'),  # Income requires employment info
+        ]
+        
+        for primary_pattern, required_pattern in required_patterns:
+            primary_cols = [col for col in column_list if primary_pattern in col.lower()]
+            required_cols = [col for col in column_list if required_pattern in col.lower()]
+            
+            for primary_col in primary_cols:
+                for required_col in required_cols:
+                    if primary_col != required_col:
+                        pairs.append((primary_col, required_col))
+        
+        return pairs
     
     def _check_numeric_range_violations(self, series: pd.Series, column_name: str) -> Dict[str, Any]:
         """Check for numeric range violations based on column type inference"""

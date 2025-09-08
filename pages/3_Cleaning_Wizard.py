@@ -101,9 +101,8 @@ with weights_cols[1]:
     if weights_col != 'None':
         if st.button("Configure Weights", type="primary"):
             try:
-                # Initialize weights manager if not exists
-                if 'weights_manager' not in st.session_state:
-                    st.session_state.weights_manager = SurveyWeightsManager()
+                # Always initialize a fresh weights manager for configuration
+                st.session_state.weights_manager = SurveyWeightsManager()
                 
                 validation_result = st.session_state.weights_manager.set_weights_column(df, weights_col)
                 
