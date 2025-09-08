@@ -16,6 +16,10 @@ dependencies = [
     "streamlit>=1.49.1",
 ]
 
+# Disable package mode to avoid installation errors
+[tool.poetry]
+package-mode = false
+
 [[tool.uv.index]]
 explicit = true
 name = "pytorch-cpu"
