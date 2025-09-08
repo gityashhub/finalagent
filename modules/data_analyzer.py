@@ -207,12 +207,22 @@ class ColumnAnalyzer:
             if outlier_values:
                 total_outliers.update(outlier_values)
         
-        # Calculate severity based on outlier percentages
-        outlier_percentages = [r.get('outlier_percentage', 0) for r in outlier_results.values()]
+        # Calculate severity based on outlier percentages (excluding note entries)
+        outlier_percentages = [
+            r.get('outlier_percentage', 0) for r in outlier_results.values() 
+            if 'note' not in r
+        ]
         max_percentage = max(outlier_percentages) if outlier_percentages else 0
         
+        # Check if methods agree (only if both IQR and Z-score methods were run)
+        methods_agree = False
+        if len(non_null_series) >= 10 and 'iqr' in outlier_results and 'zscore' in outlier_results:
+            iqr_set = set(outlier_results['iqr']['outlier_values'])
+            zscore_set = set(outlier_results['zscore']['outlier_values'])
+            methods_agree = len(iqr_set & zscore_set) > 0
+        
         summary = {
-            'methods_agree': len(set(iqr_outliers.tolist()) & set(z_outliers.tolist())) > 0,
+            'methods_agree': methods_agree,
             'consensus_outliers': len(total_outliers),
             'severity': 'high' if max_percentage > 10 else 'moderate' if max_percentage > 5 else 'low'
         }
