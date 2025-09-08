@@ -269,8 +269,11 @@ if selected_column in st.session_state.column_analysis:
             # Outlier detection was performed - show results even if no outliers found
             summary = outlier_analysis['summary']
             
-            # Check if any outliers were actually found
-            total_outliers_found = sum(result.get('outlier_count', 0) for result in method_results.values())
+            # Check if any outliers were actually found (excluding note entries)
+            total_outliers_found = sum(
+                result.get('outlier_count', 0) for result in method_results.values() 
+                if 'note' not in result
+            )
             
             if total_outliers_found == 0:
                 st.success("✅ No outliers detected using any method")
@@ -290,11 +293,19 @@ if selected_column in st.session_state.column_analysis:
             
             method_data = []
             for method_key, results in method_results.items():
-                method_data.append({
-                    'Method': results['method'],
-                    'Outliers Found': results['outlier_count'],
-                    'Percentage': f"{results['outlier_percentage']:.2f}%"
-                })
+                if 'note' in results:
+                    # Handle note entries differently
+                    method_data.append({
+                        'Method': results['method'],
+                        'Outliers Found': 'N/A (small sample)',
+                        'Percentage': 'N/A'
+                    })
+                else:
+                    method_data.append({
+                        'Method': results['method'],
+                        'Outliers Found': results['outlier_count'],
+                        'Percentage': f"{results['outlier_percentage']:.2f}%"
+                    })
             
             method_df = pd.DataFrame(method_data)
             st.dataframe(method_df, use_container_width=True)
@@ -302,20 +313,24 @@ if selected_column in st.session_state.column_analysis:
             # Detailed results for each method
             for method_key, results in method_results.items():
                 with st.expander(f"📊 {results['method']} Details"):
-                    st.write(f"**Outliers found:** {results['outlier_count']} ({results['outlier_percentage']:.2f}%)")
-                    
-                    if 'lower_bound' in results and 'upper_bound' in results:
-                        st.write(f"**Bounds:** {format_number(results['lower_bound'])} to {format_number(results['upper_bound'])}")
-                    
-                    if 'threshold' in results:
-                        st.write(f"**Threshold:** {results['threshold']}")
-                    
-                    if results.get('outlier_values'):
-                        st.write("**Sample outlier values:**")
-                        outlier_sample = results['outlier_values'][:10]  # Show first 10
-                        st.write(", ".join([format_number(v) for v in outlier_sample]))
-                    elif results['outlier_count'] == 0:
-                        st.write("**No outlier values found by this method**")
+                    # Handle special note entries for small samples
+                    if 'note' in results:
+                        st.info(results['note'])
+                    else:
+                        st.write(f"**Outliers found:** {results['outlier_count']} ({results['outlier_percentage']:.2f}%)")
+                        
+                        if 'lower_bound' in results and 'upper_bound' in results:
+                            st.write(f"**Bounds:** {format_number(results['lower_bound'])} to {format_number(results['upper_bound'])}")
+                        
+                        if 'threshold' in results:
+                            st.write(f"**Threshold:** {results['threshold']}")
+                        
+                        if results.get('outlier_values'):
+                            st.write("**Sample outlier values:**")
+                            outlier_sample = results['outlier_values'][:10]  # Show first 10
+                            st.write(", ".join([format_number(v) for v in outlier_sample]))
+                        elif results['outlier_count'] == 0:
+                            st.write("**No outlier values found by this method**")
             
             # Outlier visualization (only if outliers were found)
             if total_outliers_found > 0:

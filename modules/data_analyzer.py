@@ -137,14 +137,14 @@ class ColumnAnalyzer:
             }
         
         non_null_series = series.dropna()
-        if len(non_null_series) < 10:
+        if len(non_null_series) < 5:
             return {
                 'method_results': {}, 
                 'summary': {
                     'methods_agree': False,
                     'consensus_outliers': 0,
                     'severity': 'low',
-                    'analysis': 'Insufficient data for outlier detection'
+                    'analysis': 'Insufficient data for outlier detection (need at least 5 values)'
                 }
             }
         
@@ -167,29 +167,38 @@ class ColumnAnalyzer:
             'outlier_values': iqr_outliers.tolist()[:20]  # Limit to 20 for display
         }
         
-        # Z-Score Method
-        z_scores = np.abs(stats.zscore(non_null_series))
-        z_outliers = non_null_series[z_scores > 3]
-        outlier_results['zscore'] = {
-            'method': 'Z-Score (|z| > 3)',
-            'outlier_count': len(z_outliers),
-            'outlier_percentage': (len(z_outliers) / len(non_null_series)) * 100,
-            'threshold': 3,
-            'outlier_values': z_outliers.tolist()[:20]
-        }
-        
-        # Modified Z-Score Method
-        median = np.median(non_null_series)
-        mad = np.median(np.abs(non_null_series - median))
-        modified_z_scores = 0.6745 * (non_null_series - median) / mad if mad != 0 else np.zeros(len(non_null_series))
-        modified_z_outliers = non_null_series[np.abs(modified_z_scores) > 3.5]
-        outlier_results['modified_zscore'] = {
-            'method': 'Modified Z-Score (|Mz| > 3.5)',
-            'outlier_count': len(modified_z_outliers),
-            'outlier_percentage': (len(modified_z_outliers) / len(non_null_series)) * 100,
-            'threshold': 3.5,
-            'outlier_values': modified_z_outliers.tolist()[:20]
-        }
+        # Z-Score Method (only for larger samples where it's more reliable)
+        if len(non_null_series) >= 10:
+            z_scores = np.abs(stats.zscore(non_null_series))
+            z_outliers = non_null_series[z_scores > 3]
+            outlier_results['zscore'] = {
+                'method': 'Z-Score (|z| > 3)',
+                'outlier_count': len(z_outliers),
+                'outlier_percentage': (len(z_outliers) / len(non_null_series)) * 100,
+                'threshold': 3,
+                'outlier_values': z_outliers.tolist()[:20]
+            }
+            
+            # Modified Z-Score Method
+            median = np.median(non_null_series)
+            mad = np.median(np.abs(non_null_series - median))
+            modified_z_scores = 0.6745 * (non_null_series - median) / mad if mad != 0 else np.zeros(len(non_null_series))
+            modified_z_outliers = non_null_series[np.abs(modified_z_scores) > 3.5]
+            outlier_results['modified_zscore'] = {
+                'method': 'Modified Z-Score (|Mz| > 3.5)',
+                'outlier_count': len(modified_z_outliers),
+                'outlier_percentage': (len(modified_z_outliers) / len(non_null_series)) * 100,
+                'threshold': 3.5,
+                'outlier_values': modified_z_outliers.tolist()[:20]
+            }
+        else:
+            # For small samples, add a note about why some methods are skipped
+            outlier_results['note_small_sample'] = {
+                'method': 'Note: Z-Score methods',
+                'outlier_count': 0,
+                'outlier_percentage': 0,
+                'note': f'Skipped for small sample size (n={len(non_null_series)}). Z-score methods require larger samples for reliability.'
+            }
         
         # Statistical summary
         total_outliers = set()
