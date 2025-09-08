@@ -233,9 +233,14 @@ class ReportGenerator:
     
     def generate_complete_report(self, df: pd.DataFrame, original_df: pd.DataFrame,
                                analysis_results: Dict[str, Any], 
-                               cleaning_history: Dict[str, Any]) -> Dict[str, str]:
+                               cleaning_history: Dict[str, Any],
+                               weights_manager=None, violations=None) -> Dict[str, str]:
         """Generate all report types"""
         
+        # Update weights manager if provided
+        if weights_manager:
+            self.weights_manager = weights_manager
+            
         reports = {}
         
         try:
