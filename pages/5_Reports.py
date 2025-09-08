@@ -83,10 +83,10 @@ with generate_cols[0]:
                     reports = report_generator.generate_complete_report(
                         df, 
                         original_df,
-                        weights_manager=weights_manager,
-                        violations=violations, 
                         st.session_state.column_analysis, 
-                        st.session_state.cleaning_history
+                        st.session_state.cleaning_history,
+                        weights_manager=weights_manager,
+                        violations=violations
                     )
                     
                     # Filter to requested types
