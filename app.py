@@ -5,7 +5,7 @@ from modules.utils import initialize_session_state
 
 # Configure page
 st.set_page_config(
-    page_title="Survey Data Cleaning Assistant",
+    page_title=" Data Cleaning Assistant",
     page_icon="🧹",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -15,7 +15,7 @@ st.set_page_config(
 initialize_session_state()
 
 def main():
-    st.title("🧹 Intelligent Survey Data Cleaning Assistant")
+    st.title("🧹 Intelligent Data Cleaning Assistant")
     
     st.markdown("""
     Welcome to the Survey Data Cleaning Assistant - an AI-powered tool designed specifically for statistical agencies.
