@@ -391,7 +391,7 @@ if 'preview_results' in st.session_state:
         selected_column, 
         method_name
     )
-    st.plotly_chart(comparison_fig, width='stretch')
+    st.plotly_chart(comparison_fig, use_container_width=True)
     
     # Sample data comparison
     st.markdown("**Sample Data Changes:**")

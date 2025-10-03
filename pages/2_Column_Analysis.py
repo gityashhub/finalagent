@@ -107,11 +107,11 @@ if st.session_state.get('show_overview', False):
     
     # Create overview visualization
     overview_fig = visualizer.plot_column_overview(df)
-    st.plotly_chart(overview_fig, width='stretch')
+    st.plotly_chart(overview_fig, use_container_width=True)
     
     # Missing patterns heatmap
     missing_fig = visualizer.plot_missing_patterns(df)
-    st.plotly_chart(missing_fig, width='stretch')
+    st.plotly_chart(missing_fig, use_container_width=True)
     
     if st.button("❌ Close Overview"):
         st.session_state.show_overview = False
@@ -348,7 +348,7 @@ if selected_column in st.session_state.column_analysis:
         
         # Distribution plot
         dist_fig = visualizer.plot_column_distribution(df[selected_column], selected_column)
-        st.plotly_chart(dist_fig, width='stretch')
+        st.plotly_chart(dist_fig, use_container_width=True)
         
         # Distribution characteristics
         if distribution_analysis['type'] == 'numeric':

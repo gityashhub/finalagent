@@ -264,7 +264,7 @@ if st.session_state.get('generated_reports'):
         with viz_tabs[0]:
             st.markdown("### Dataset Overview")
             overview_fig = visualizer.plot_column_overview(df)
-            st.plotly_chart(overview_fig, width='stretch')
+            st.plotly_chart(overview_fig, use_container_width=True)
             
             # Basic statistics table
             st.markdown("### Basic Dataset Statistics")
@@ -294,7 +294,7 @@ if st.session_state.get('generated_reports'):
         with viz_tabs[1]:
             st.markdown("### Missing Data Patterns")
             missing_fig = visualizer.plot_missing_patterns(df)
-            st.plotly_chart(missing_fig, width='stretch')
+            st.plotly_chart(missing_fig, use_container_width=True)
             
             # Missing data summary
             missing_summary = df.isnull().sum().sort_values(ascending=False)
@@ -354,7 +354,7 @@ if st.session_state.get('generated_reports'):
             numeric_cols = df.select_dtypes(include=[np.number]).columns
             if len(numeric_cols) > 1:
                 correlation_fig = visualizer.plot_correlation_matrix(df)
-                st.plotly_chart(correlation_fig, width='stretch')
+                st.plotly_chart(correlation_fig, use_container_width=True)
                 
                 # High correlation pairs
                 corr_matrix = df[numeric_cols].corr()
