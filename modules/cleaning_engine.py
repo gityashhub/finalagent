@@ -233,20 +233,31 @@ class DataCleaningEngine:
         return filled_series, metadata
     
     def _knn_imputation(self, df: pd.DataFrame, column: str, n_neighbors: int = 5, **kwargs) -> Tuple[pd.Series, Dict[str, Any]]:
-        """KNN imputation using other numeric columns"""
+        """KNN imputation using other numeric columns - optimized"""
         if not pd.api.types.is_numeric_dtype(df[column]):
             raise ValueError("KNN imputation only applicable to numeric columns")
         
-        # Select numeric columns for KNN
+        # Select numeric columns for KNN (limit to most correlated for performance)
         numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
         if len(numeric_cols) < 2:
             raise ValueError("KNN imputation requires at least 2 numeric columns")
         
+        # Optimize: use only most relevant columns if we have many (>10)
+        if len(numeric_cols) > 10:
+            # Calculate correlations and select top 10 most correlated
+            correlations = df[numeric_cols].corr()[column].abs().sort_values(ascending=False)
+            top_cols = correlations.head(11).index.tolist()  # Include the target column
+            numeric_cols = [col for col in top_cols if col in numeric_cols]
+        
         # Prepare data for KNN
         knn_data = df[numeric_cols].copy()
         
-        # Apply KNN imputation
-        imputer = KNNImputer(n_neighbors=n_neighbors)
+        # Apply KNN imputation with optimized n_neighbors
+        optimal_k = min(n_neighbors, len(knn_data.dropna()) // 2)
+        if optimal_k < 1:
+            optimal_k = 1
+        
+        imputer = KNNImputer(n_neighbors=optimal_k)
         imputed_data = imputer.fit_transform(knn_data)
         
         # Extract the imputed column
@@ -255,7 +266,7 @@ class DataCleaningEngine:
         
         metadata = {
             'method': 'knn_imputation',
-            'n_neighbors': n_neighbors,
+            'n_neighbors': optimal_k,
             'features_used': len(numeric_cols),
             'values_imputed': df[column].isnull().sum()
         }

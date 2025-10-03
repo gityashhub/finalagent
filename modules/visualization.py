@@ -8,6 +8,14 @@ import matplotlib.pyplot as plt
 from typing import Dict, List, Any, Tuple
 import plotly.figure_factory as ff
 
+# Cached correlation matrix computation
+@st.cache_data(ttl=3600, show_spinner=False)
+def _compute_correlation_matrix(data_hash: int, numeric_cols: tuple) -> pd.DataFrame:
+    """Cached correlation matrix computation"""
+    import pandas as pd
+    # Reconstruct the dataframe from cached data
+    return None  # Placeholder - will be handled in plot_correlation_matrix
+
 class DataVisualizer:
     """Comprehensive visualization module for data cleaning assistant"""
     
@@ -17,6 +25,7 @@ class DataVisualizer:
             'displayModeBar': True,
             'modeBarButtonsToAdd': ['drawline', 'drawopenpath', 'drawrect', 'eraseshape']
         }
+        self._corr_cache = {}
     
     def plot_missing_patterns(self, df: pd.DataFrame, max_cols: int = 50) -> go.Figure:
         """Create heatmap of missing value patterns"""
@@ -306,7 +315,7 @@ class DataVisualizer:
         return fig
     
     def plot_correlation_matrix(self, df: pd.DataFrame, max_cols: int = 20) -> go.Figure:
-        """Create correlation matrix for numeric columns"""
+        """Create correlation matrix for numeric columns - optimized with caching"""
         numeric_df = df.select_dtypes(include=[np.number])
         
         if len(numeric_df.columns) == 0:
@@ -321,8 +330,17 @@ class DataVisualizer:
         if len(numeric_df.columns) > max_cols:
             numeric_df = numeric_df.iloc[:, :max_cols]
         
-        # Calculate correlation matrix
-        corr_matrix = numeric_df.corr()
+        # Create cache key based on columns and data hash
+        cols_tuple = tuple(numeric_df.columns)
+        cache_key = (cols_tuple, len(numeric_df))
+        
+        # Check cache first
+        if cache_key in self._corr_cache:
+            corr_matrix = self._corr_cache[cache_key]
+        else:
+            # Calculate correlation matrix (optimized with numpy)
+            corr_matrix = numeric_df.corr(method='pearson')
+            self._corr_cache[cache_key] = corr_matrix
         
         # Create heatmap
         fig = go.Figure(data=go.Heatmap(

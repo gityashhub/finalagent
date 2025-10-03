@@ -5,6 +5,7 @@ from scipy import stats
 from sklearn.preprocessing import StandardScaler
 from sklearn.neighbors import LocalOutlierFactor
 from sklearn.cluster import DBSCAN
+import streamlit as st
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -13,6 +14,7 @@ class ColumnAnalyzer:
     
     def __init__(self):
         self.analysis_cache = {}
+        self._cached_correlations = {}
     
     def analyze_column(self, df: pd.DataFrame, column: str, force_refresh: bool = False) -> Dict[str, Any]:
         """Comprehensive analysis of a single column"""
@@ -124,7 +126,7 @@ class ColumnAnalyzer:
         return analysis
     
     def _detect_outliers(self, series: pd.Series) -> Dict[str, Any]:
-        """Detect outliers using multiple methods"""
+        """Detect outliers using multiple methods - optimized"""
         if not pd.api.types.is_numeric_dtype(series):
             return {
                 'method_results': {}, 
@@ -150,14 +152,14 @@ class ColumnAnalyzer:
         
         outlier_results = {}
         
-        # IQR Method
-        Q1 = non_null_series.quantile(0.25)
-        Q3 = non_null_series.quantile(0.75)
+        # IQR Method - vectorized calculation
+        Q1, Q3 = non_null_series.quantile([0.25, 0.75])
         IQR = Q3 - Q1
         lower_bound = Q1 - 1.5 * IQR
         upper_bound = Q3 + 1.5 * IQR
         
-        iqr_outliers = non_null_series[(non_null_series < lower_bound) | (non_null_series > upper_bound)]
+        iqr_mask = (non_null_series < lower_bound) | (non_null_series > upper_bound)
+        iqr_outliers = non_null_series[iqr_mask]
         outlier_results['iqr'] = {
             'method': 'Interquartile Range (IQR)',
             'outlier_count': len(iqr_outliers),
