@@ -6,6 +6,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.neighbors import LocalOutlierFactor
 from sklearn.cluster import DBSCAN
 import streamlit as st
+import hashlib
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -18,7 +19,12 @@ class ColumnAnalyzer:
     
     def analyze_column(self, df: pd.DataFrame, column: str, force_refresh: bool = False) -> Dict[str, Any]:
         """Comprehensive analysis of a single column"""
-        cache_key = f"{column}_{len(df)}_{df[column].isnull().sum()}"
+        # Create a robust cache key that detects any data changes (order-aware, deterministic)
+        series = df[column]
+        # Use order-aware deterministic hash for stable caching across sessions
+        hash_array = pd.util.hash_pandas_object(series, index=False).values
+        data_hash = hashlib.sha256(hash_array.tobytes()).hexdigest()[:16]  # Deterministic hash
+        cache_key = f"{column}_{len(df)}_{data_hash}"
         
         if not force_refresh and cache_key in self.analysis_cache:
             return self.analysis_cache[cache_key]

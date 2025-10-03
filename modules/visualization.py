@@ -8,13 +8,7 @@ import matplotlib.pyplot as plt
 from typing import Dict, List, Any, Tuple
 import plotly.figure_factory as ff
 
-# Cached correlation matrix computation
-@st.cache_data(ttl=3600, show_spinner=False)
-def _compute_correlation_matrix(data_hash: int, numeric_cols: tuple) -> pd.DataFrame:
-    """Cached correlation matrix computation"""
-    import pandas as pd
-    # Reconstruct the dataframe from cached data
-    return None  # Placeholder - will be handled in plot_correlation_matrix
+# Remove the placeholder - caching will be done at instance level
 
 class DataVisualizer:
     """Comprehensive visualization module for data cleaning assistant"""
