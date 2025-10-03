@@ -142,11 +142,12 @@ with config_cols[0]:
 with config_cols[1]:
     export_format = st.selectbox(
         "Export format:",
-        options=['markdown', 'html', 'json'],
+        options=['pdf', 'markdown', 'html', 'json'],
         format_func=lambda x: {
+            'pdf': '📄 PDF Document',
             'markdown': '📝 Markdown',
             'html': '🌐 HTML',
-            'json': '📄 JSON'
+            'json': '📊 JSON'
         }[x]
     )
 
@@ -194,7 +195,49 @@ with generate_cols[2]:
         timestamp = st.session_state.get('report_timestamp', datetime.now())
         filename = f"cleaning_report_{timestamp.strftime('%Y%m%d_%H%M%S')}"
         
-        if export_format == 'html':
+        if export_format == 'pdf':
+            try:
+                # Generate PDF with all data
+                anomaly_results = st.session_state.get('anomaly_results', {})
+                saved_visualizations = st.session_state.get('saved_visualizations', [])
+                
+                pdf_bytes = report_generator.export_to_pdf(
+                    reports=st.session_state.generated_reports,
+                    df=df,
+                    analysis_results=st.session_state.column_analysis,
+                    cleaning_history=st.session_state.cleaning_history,
+                    anomaly_results=anomaly_results,
+                    saved_visualizations=saved_visualizations,
+                    title="Data Cleaning Report"
+                )
+                
+                st.download_button(
+                    "💾 Download PDF Report",
+                    data=pdf_bytes,
+                    file_name=f"{filename}.pdf",
+                    mime="application/pdf",
+                    use_container_width=True,
+                    type="primary"
+                )
+                
+                # Show what's included
+                pdf_includes = []
+                if st.session_state.column_analysis:
+                    pdf_includes.append(f"✅ {len(st.session_state.column_analysis)} column analyses")
+                if anomaly_results:
+                    pdf_includes.append(f"✅ {len(anomaly_results)} anomaly detections")
+                if saved_visualizations:
+                    pdf_includes.append(f"✅ {len(saved_visualizations)} visualizations")
+                if st.session_state.cleaning_history:
+                    pdf_includes.append(f"✅ {len(st.session_state.cleaning_history)} cleaning operations")
+                
+                if pdf_includes:
+                    st.caption("**Included in PDF:** " + " | ".join(pdf_includes))
+                
+            except Exception as e:
+                st.error(f"Error generating PDF: {str(e)}")
+                st.exception(e)
+        elif export_format == 'html':
             html_content = report_generator.export_to_html(
                 st.session_state.generated_reports, 
                 "Data Cleaning Report"
@@ -204,7 +247,7 @@ with generate_cols[2]:
                 data=html_content,
                 file_name=f"{filename}.html",
                 mime="text/html",
-                width='stretch'
+                use_container_width=True
             )
         elif export_format == 'json':
             json_content = report_generator.export_to_json(
@@ -220,7 +263,7 @@ with generate_cols[2]:
                 data=json_content,
                 file_name=f"{filename}.json",
                 mime="application/json",
-                width='stretch'
+                use_container_width=True
             )
         else:  # markdown
             # Combine all markdown reports
@@ -234,7 +277,7 @@ with generate_cols[2]:
                 data=combined_content,
                 file_name=f"{filename}.md",
                 mime="text/markdown",
-                width='stretch'
+                use_container_width=True
             )
 
 # Display generated reports

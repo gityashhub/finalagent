@@ -585,6 +585,241 @@ All operations listed above can be independently verified and reproduced using t
 *Complete audit trail for data cleaning operations*
 """
     
+    def export_to_pdf(self, reports: Dict[str, str], df: pd.DataFrame, 
+                     analysis_results: Dict[str, Any], cleaning_history: Dict[str, Any],
+                     anomaly_results: Dict[str, Any] = None, 
+                     saved_visualizations: List[Dict[str, Any]] = None,
+                     title: str = "Data Cleaning Report") -> bytes:
+        """Export reports to PDF format with anomalies and visualizations"""
+        from reportlab.lib.pagesizes import letter, A4
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.units import inch
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Table, TableStyle, Image
+        from reportlab.lib import colors
+        from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_JUSTIFY
+        from io import BytesIO
+        from PIL import Image as PILImage
+        
+        # Create PDF buffer
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=letter,
+                              rightMargin=72, leftMargin=72,
+                              topMargin=72, bottomMargin=18)
+        
+        # Container for PDF elements
+        elements = []
+        
+        # Styles
+        styles = getSampleStyleSheet()
+        title_style = ParagraphStyle(
+            'CustomTitle',
+            parent=styles['Heading1'],
+            fontSize=24,
+            textColor=colors.HexColor('#2c3e50'),
+            spaceAfter=30,
+            alignment=TA_CENTER
+        )
+        heading_style = ParagraphStyle(
+            'CustomHeading',
+            parent=styles['Heading2'],
+            fontSize=16,
+            textColor=colors.HexColor('#34495e'),
+            spaceAfter=12,
+            spaceBefore=12
+        )
+        normal_style = styles['Normal']
+        
+        # Title
+        elements.append(Paragraph(f"🧹 {title}", title_style))
+        elements.append(Paragraph(f"<b>Generated:</b> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", normal_style))
+        elements.append(Spacer(1, 0.3*inch))
+        
+        # Executive Summary
+        elements.append(Paragraph("📊 Executive Summary", heading_style))
+        
+        # Dataset statistics
+        summary_data = [
+            ['Metric', 'Value'],
+            ['Total Rows', f"{len(df):,}"],
+            ['Total Columns', str(len(df.columns))],
+            ['Missing Values', f"{df.isnull().sum().sum():,}"],
+            ['Analyzed Columns', str(len(analysis_results))],
+            ['Cleaned Columns', str(len(cleaning_history))]
+        ]
+        
+        summary_table = Table(summary_data, colWidths=[3*inch, 3*inch])
+        summary_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3498db')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 12),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+        ]))
+        
+        elements.append(summary_table)
+        elements.append(Spacer(1, 0.3*inch))
+        
+        # Anomaly Detection Results
+        if anomaly_results and len(anomaly_results) > 0:
+            elements.append(PageBreak())
+            elements.append(Paragraph("🚨 Anomaly Detection Results", heading_style))
+            elements.append(Spacer(1, 0.2*inch))
+            
+            for col_name, anomaly_data in anomaly_results.items():
+                elements.append(Paragraph(f"<b>Column: {col_name}</b>", normal_style))
+                
+                # Anomaly summary table
+                anomaly_table_data = [['Type', 'Count', 'Details']]
+                
+                # Outliers
+                if anomaly_data.get('total_outliers', 0) > 0:
+                    outliers = anomaly_data['total_outliers']
+                    severity = anomaly_data.get('severity', 'N/A')
+                    anomaly_table_data.append(['Outliers', str(outliers), f"Severity: {severity}"])
+                
+                # Missing data
+                if anomaly_data.get('missing_data'):
+                    missing = anomaly_data['missing_data']
+                    anomaly_table_data.append([
+                        'Missing Values',
+                        str(missing['count']),
+                        f"{missing['percentage']:.2f}% - Pattern: {missing['pattern']}"
+                    ])
+                
+                # Rule violations
+                if anomaly_data.get('rule_violations'):
+                    violations = anomaly_data['rule_violations']
+                    anomaly_table_data.append([
+                        'Rule Violations',
+                        str(violations['count']),
+                        f"Severity: {violations['severity']}"
+                    ])
+                
+                if len(anomaly_table_data) > 1:
+                    anomaly_table = Table(anomaly_table_data, colWidths=[1.5*inch, 1*inch, 3.5*inch])
+                    anomaly_table.setStyle(TableStyle([
+                        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#e74c3c')),
+                        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                        ('FONTSIZE', (0, 0), (-1, -1), 9),
+                        ('BACKGROUND', (0, 1), (-1, -1), colors.lightgrey),
+                        ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                        ('VALIGN', (0, 0), (-1, -1), 'TOP')
+                    ]))
+                    elements.append(anomaly_table)
+                    elements.append(Spacer(1, 0.2*inch))
+        
+        # Column Analysis Summary
+        if analysis_results:
+            elements.append(PageBreak())
+            elements.append(Paragraph("🔍 Column Analysis Summary", heading_style))
+            elements.append(Spacer(1, 0.2*inch))
+            
+            analysis_table_data = [['Column', 'Type', 'Missing %', 'Quality Score', 'Status']]
+            
+            for col_name, analysis in analysis_results.items():
+                col_type = analysis.get('distribution_analysis', {}).get('type', 'unknown')
+                missing_pct = analysis.get('basic_info', {}).get('missing_percentage', 0)
+                quality_score = analysis.get('data_quality', {}).get('score', 0)
+                cleaned = '✅ Cleaned' if col_name in cleaning_history else '⏳ Pending'
+                
+                analysis_table_data.append([
+                    col_name,
+                    col_type.title(),
+                    f"{missing_pct:.1f}%",
+                    f"{quality_score}/100",
+                    cleaned
+                ])
+            
+            # Split table if too many columns
+            max_rows_per_page = 30
+            for i in range(0, len(analysis_table_data), max_rows_per_page):
+                chunk = analysis_table_data[i:min(i+max_rows_per_page, len(analysis_table_data))]
+                if i > 0:
+                    chunk.insert(0, analysis_table_data[0])  # Add header
+                
+                analysis_table = Table(chunk, colWidths=[1.5*inch, 1*inch, 1*inch, 1.2*inch, 1.3*inch])
+                analysis_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3498db')),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, -1), 8),
+                    ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                    ('VALIGN', (0, 0), (-1, -1), 'MIDDLE')
+                ]))
+                elements.append(analysis_table)
+                
+                if i + max_rows_per_page < len(analysis_table_data):
+                    elements.append(PageBreak())
+        
+        # Saved Visualizations
+        if saved_visualizations and len(saved_visualizations) > 0:
+            elements.append(PageBreak())
+            elements.append(Paragraph(f"📈 Saved Visualizations ({len(saved_visualizations)} charts)", heading_style))
+            elements.append(Spacer(1, 0.2*inch))
+            
+            for idx, viz in enumerate(saved_visualizations):
+                try:
+                    elements.append(Paragraph(f"<b>{idx + 1}. {viz['name']}</b>", normal_style))
+                    elements.append(Paragraph(f"<i>Type: {viz['type'].title()} | Columns: {', '.join(viz['columns'])}</i>", normal_style))
+                    elements.append(Spacer(1, 0.1*inch))
+                    
+                    # Add visualization image
+                    if 'img_bytes' in viz:
+                        img_buffer = BytesIO(viz['img_bytes'])
+                        img = Image(img_buffer, width=6*inch, height=3*inch)
+                        elements.append(img)
+                        elements.append(Spacer(1, 0.3*inch))
+                    
+                    # Page break after every 2 visualizations
+                    if (idx + 1) % 2 == 0 and idx < len(saved_visualizations) - 1:
+                        elements.append(PageBreak())
+                        
+                except Exception as e:
+                    elements.append(Paragraph(f"<i>Error loading visualization: {str(e)}</i>", normal_style))
+                    elements.append(Spacer(1, 0.2*inch))
+        
+        # Cleaning Operations
+        if cleaning_history:
+            elements.append(PageBreak())
+            elements.append(Paragraph("🧹 Cleaning Operations Log", heading_style))
+            elements.append(Spacer(1, 0.2*inch))
+            
+            for col_name, operations in cleaning_history.items():
+                if operations:
+                    elements.append(Paragraph(f"<b>Column: {col_name}</b>", normal_style))
+                    
+                    for op in operations:
+                        method = op.get('method_name', 'Unknown')
+                        timestamp = op.get('timestamp', '')[:19] if op.get('timestamp') else 'N/A'
+                        elements.append(Paragraph(f"• {method} (Applied: {timestamp})", normal_style))
+                    
+                    elements.append(Spacer(1, 0.1*inch))
+        
+        # Footer
+        elements.append(PageBreak())
+        elements.append(Spacer(1, 2*inch))
+        elements.append(Paragraph("---", normal_style))
+        elements.append(Paragraph(
+            "<i>Generated by Intelligent Data Cleaning Assistant</i>",
+            ParagraphStyle('Footer', parent=normal_style, alignment=TA_CENTER, fontSize=10)
+        ))
+        
+        # Build PDF
+        doc.build(elements)
+        
+        # Get PDF bytes
+        pdf_bytes = buffer.getvalue()
+        buffer.close()
+        
+        return pdf_bytes
+    
     def export_to_html(self, reports: Dict[str, str], title: str = "Data Cleaning Report") -> str:
         """Export reports to HTML format"""
         
