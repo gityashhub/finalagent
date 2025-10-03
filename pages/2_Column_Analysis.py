@@ -346,13 +346,16 @@ if selected_column in st.session_state.column_analysis:
         
         distribution_analysis = analysis['distribution_analysis']
         
-        # Distribution plot
+        # Distribution plot with enhanced visualization
         dist_fig = visualizer.plot_column_distribution(df[selected_column], selected_column)
         st.plotly_chart(dist_fig, use_container_width=True)
         
+        # Add explanation banner
+        st.info("📊 **Understanding Distribution:** The distribution shows how values are spread across the data range. This helps identify patterns, clusters, and potential data quality issues.")
+        
         # Distribution characteristics
         if distribution_analysis['type'] == 'numeric':
-            st.markdown("### Distribution Characteristics")
+            st.markdown("### 📈 Distribution Characteristics Explained")
             
             char_cols = st.columns(3)
             
@@ -360,45 +363,165 @@ if selected_column in st.session_state.column_analysis:
                 skew_val = distribution_analysis['skewness']
                 if abs(skew_val) < 0.5:
                     skew_desc = "Approximately Normal"
+                    skew_explain = "Data is balanced around the mean"
+                    skew_icon = "✅"
                 elif abs(skew_val) < 1:
                     skew_desc = "Moderately Skewed"
+                    skew_explain = "Some asymmetry in the data"
+                    skew_icon = "⚠️"
                 else:
                     skew_desc = "Highly Skewed"
+                    skew_explain = "Data heavily concentrated on one side"
+                    skew_icon = "🔴"
                 
                 st.metric("Skewness", f"{skew_val:.3f}")
-                st.write(f"*{skew_desc}*")
+                st.markdown(f"**{skew_icon} {skew_desc}**")
+                st.caption(skew_explain)
+                
+                # Direction explanation
+                if skew_val > 0.1:
+                    st.caption("➡️ Right-skewed: tail extends to the right")
+                elif skew_val < -0.1:
+                    st.caption("⬅️ Left-skewed: tail extends to the left")
             
             with char_cols[1]:
                 kurt_val = distribution_analysis['kurtosis']
                 if kurt_val < -0.5:
-                    kurt_desc = "Platykurtic (flatter)"
+                    kurt_desc = "Platykurtic"
+                    kurt_explain = "Flatter distribution with lighter tails"
+                    kurt_icon = "📊"
                 elif kurt_val > 0.5:
-                    kurt_desc = "Leptokurtic (peaked)"
+                    kurt_desc = "Leptokurtic"
+                    kurt_explain = "Peaked distribution with heavier tails"
+                    kurt_icon = "📈"
                 else:
-                    kurt_desc = "Mesokurtic (normal-like)"
+                    kurt_desc = "Mesokurtic"
+                    kurt_explain = "Normal-like peakedness"
+                    kurt_icon = "✅"
                 
                 st.metric("Kurtosis", f"{kurt_val:.3f}")
-                st.write(f"*{kurt_desc}*")
+                st.markdown(f"**{kurt_icon} {kurt_desc}**")
+                st.caption(kurt_explain)
             
             with char_cols[2]:
                 normality = distribution_analysis['normality_test']
                 is_normal = normality['is_normal']
                 
                 st.metric("Normality Test", "✅ Normal" if is_normal else "❌ Not Normal")
-                st.write(f"*p-value: {normality['shapiro_p']:.4f}*")
+                st.caption(f"p-value: {normality['shapiro_p']:.4f}")
+                
+                if is_normal:
+                    st.caption("Data follows a normal distribution")
+                else:
+                    st.caption("Data deviates from normal distribution")
+            
+            # Quartile information with explanation
+            st.markdown("### 📊 Quartile Analysis")
+            
+            quartile_cols = st.columns(5)
+            basic_info = analysis['basic_info']
+            
+            with quartile_cols[0]:
+                st.metric("Minimum", format_number(basic_info['min']))
+                st.caption("Lowest value")
+            
+            with quartile_cols[1]:
+                st.metric("Q1 (25%)", format_number(basic_info.get('q1', 0)))
+                st.caption("25% of data below")
+            
+            with quartile_cols[2]:
+                st.metric("Median (50%)", format_number(basic_info['median']))
+                st.caption("Middle value")
+            
+            with quartile_cols[3]:
+                st.metric("Q3 (75%)", format_number(basic_info.get('q3', 0)))
+                st.caption("75% of data below")
+            
+            with quartile_cols[4]:
+                st.metric("Maximum", format_number(basic_info['max']))
+                st.caption("Highest value")
+            
+            # Interpretation guidance
+            with st.expander("💡 How to Interpret These Statistics"):
+                st.markdown("""
+                **Skewness:**
+                - **Near 0 (-0.5 to 0.5)**: Symmetric distribution, data is balanced
+                - **Positive (> 0.5)**: Right-skewed, most values on the left, with a long tail to the right
+                - **Negative (< -0.5)**: Left-skewed, most values on the right, with a long tail to the left
+                
+                **Kurtosis:**
+                - **Near 0 (-0.5 to 0.5)**: Normal bell-curve shape
+                - **Positive (> 0.5)**: More peaked with heavier tails (more outliers likely)
+                - **Negative (< -0.5)**: Flatter with lighter tails (fewer outliers)
+                
+                **Normality Test:**
+                - If p-value > 0.05: Data likely follows a normal distribution
+                - If p-value ≤ 0.05: Data significantly deviates from normal distribution
+                - Many statistical methods assume normality, so this is important to check
+                
+                **Quartiles (Q1, Median, Q3):**
+                - **Q1**: 25% of values are below this point
+                - **Median**: The middle value - 50% above, 50% below
+                - **Q3**: 75% of values are below this point
+                - **IQR (Q3-Q1)**: Measures spread of the middle 50% of data
+                """)
         
         elif distribution_analysis['type'] == 'categorical':
-            st.markdown("### Category Distribution")
+            st.markdown("### 📊 Category Distribution Explained")
             
             freq_dist = distribution_analysis['frequency_distribution']
             if freq_dist:
                 freq_data = list(freq_dist.items())
                 freq_df = pd.DataFrame(freq_data, columns=['Category', 'Count'])
-                st.dataframe(freq_df, width='stretch')
+                freq_df['Percentage'] = (freq_df['Count'] / freq_df['Count'].sum() * 100).round(2)
+                freq_df = freq_df.sort_values('Count', ascending=False)
+                
+                st.dataframe(freq_df, use_container_width=True, hide_index=True)
+                
+                # Category insights
+                insights_cols = st.columns(3)
+                
+                with insights_cols[0]:
+                    st.metric("Unique Categories", len(freq_df))
+                    st.caption("Number of distinct values")
+                
+                with insights_cols[1]:
+                    most_common = freq_df.iloc[0]
+                    st.metric("Most Common", f"{most_common['Count']:,}")
+                    st.caption(f"Category: {most_common['Category']}")
+                
+                with insights_cols[2]:
+                    least_common = freq_df.iloc[-1]
+                    st.metric("Least Common", f"{least_common['Count']:,}")
+                    st.caption(f"Category: {least_common['Category']}")
             
             if 'entropy' in distribution_analysis:
-                st.metric("Entropy", f"{distribution_analysis['entropy']:.3f}")
-                st.caption("Higher entropy indicates more uniform distribution")
+                entropy_val = distribution_analysis['entropy']
+                max_entropy = np.log(len(freq_dist)) if len(freq_dist) > 0 else 1
+                entropy_ratio = entropy_val / max_entropy if max_entropy > 0 else 0
+                
+                st.metric("Entropy Score", f"{entropy_val:.3f}")
+                st.caption(f"Uniformity: {entropy_ratio*100:.1f}%")
+                
+                if entropy_ratio > 0.9:
+                    st.info("✅ Categories are evenly distributed")
+                elif entropy_ratio > 0.7:
+                    st.info("⚠️ Moderately balanced distribution")
+                else:
+                    st.warning("⚠️ Imbalanced distribution - some categories dominate")
+                
+                with st.expander("💡 Understanding Entropy"):
+                    st.markdown("""
+                    **Entropy** measures how evenly distributed categories are:
+                    - **High entropy (>90%)**: All categories appear with similar frequencies
+                    - **Medium entropy (70-90%)**: Some imbalance between categories
+                    - **Low entropy (<70%)**: Strong concentration in few categories
+                    
+                    **Why it matters:**
+                    - Imbalanced categories can bias analysis
+                    - Machine learning models may struggle with rare categories
+                    - May indicate data collection issues
+                    """)
     
     with tab5:
         st.subheader("Rule-Based Violations")
@@ -529,6 +652,156 @@ if selected_column in st.session_state.column_analysis:
 
 else:
     st.info("👆 Select a column and click 'Analyze Column' to see detailed analysis.")
+
+# ===== ANOMALY DETECTION SECTION =====
+st.markdown("---")
+st.subheader("🚨 Comprehensive Anomaly Detection")
+
+st.markdown("""
+Run anomaly detection across the analyzed column to identify potential data quality issues. 
+Results will be saved and can be included in your PDF reports.
+""")
+
+if selected_column and selected_column in st.session_state.column_analysis:
+    analysis = st.session_state.column_analysis[selected_column]
+    
+    anomaly_cols = st.columns([3, 1])
+    
+    with anomaly_cols[0]:
+        st.markdown(f"**Anomaly detection for:** `{selected_column}`")
+        
+    with anomaly_cols[1]:
+        if st.button("🔍 Run Detection", type="primary", key="run_anomaly_detection"):
+            with st.spinner("Detecting anomalies..."):
+                # Initialize anomaly_results if not exists
+                if 'anomaly_results' not in st.session_state:
+                    st.session_state.anomaly_results = {}
+                
+                # Compile anomaly information from analysis
+                anomaly_data = {
+                    'column': selected_column,
+                    'type': 'multi-method',
+                    'timestamp': pd.Timestamp.now().isoformat(),
+                    'methods': {}
+                }
+                
+                # Add outlier information
+                outlier_analysis = analysis.get('outlier_analysis', {})
+                if outlier_analysis.get('method_results'):
+                    total_outliers = 0
+                    for method_key, result in outlier_analysis['method_results'].items():
+                        if 'outlier_count' in result and 'note' not in result:
+                            count = result['outlier_count']
+                            total_outliers += count
+                            anomaly_data['methods'][method_key] = {
+                                'method': result['method'],
+                                'count': count,
+                                'percentage': result.get('outlier_percentage', 0)
+                            }
+                    
+                    anomaly_data['total_outliers'] = total_outliers
+                    anomaly_data['severity'] = outlier_analysis.get('summary', {}).get('severity', 'low')
+                
+                # Add missing data information
+                missing_info = analysis.get('missing_analysis', {})
+                if missing_info.get('total_missing', 0) > 0:
+                    anomaly_data['missing_data'] = {
+                        'count': missing_info['total_missing'],
+                        'percentage': missing_info['percentage'],
+                        'pattern': missing_info.get('pattern_type', 'unknown')
+                    }
+                
+                # Add rule violations
+                rule_violations = analysis.get('rule_violations', {})
+                if rule_violations.get('total_violations', 0) > 0:
+                    anomaly_data['rule_violations'] = {
+                        'count': rule_violations['total_violations'],
+                        'severity': rule_violations.get('severity', 'low'),
+                        'types': rule_violations.get('violation_types', [])
+                    }
+                
+                # Store in session state
+                st.session_state.anomaly_results[selected_column] = anomaly_data
+                st.success(f"✅ Anomaly detection completed for {selected_column}")
+                st.rerun()
+    
+    # Display anomaly results if available
+    if selected_column in st.session_state.get('anomaly_results', {}):
+        anomaly_data = st.session_state.anomaly_results[selected_column]
+        
+        st.markdown("### 📊 Anomaly Detection Results")
+        
+        # Summary metrics
+        result_cols = st.columns(4)
+        
+        with result_cols[0]:
+            total_outliers = anomaly_data.get('total_outliers', 0)
+            st.metric("Outliers Detected", total_outliers)
+        
+        with result_cols[1]:
+            missing_count = anomaly_data.get('missing_data', {}).get('count', 0)
+            st.metric("Missing Values", missing_count)
+        
+        with result_cols[2]:
+            violations = anomaly_data.get('rule_violations', {}).get('count', 0)
+            st.metric("Rule Violations", violations)
+        
+        with result_cols[3]:
+            severity = anomaly_data.get('severity', 'low')
+            severity_colors = {'high': '🔴', 'moderate': '🟡', 'low': '🟢'}
+            st.metric("Severity", f"{severity_colors.get(severity, '⚪')} {severity.title()}")
+        
+        # Detailed results
+        with st.expander("📋 Detailed Anomaly Report", expanded=True):
+            # Outlier methods breakdown
+            if anomaly_data.get('methods'):
+                st.markdown("#### Outlier Detection Methods")
+                method_table = []
+                for method_key, method_data in anomaly_data['methods'].items():
+                    method_table.append({
+                        'Method': method_data['method'],
+                        'Anomalies Found': method_data['count'],
+                        'Percentage': f"{method_data['percentage']:.2f}%"
+                    })
+                
+                if method_table:
+                    st.dataframe(pd.DataFrame(method_table), use_container_width=True, hide_index=True)
+            
+            # Missing data patterns
+            if anomaly_data.get('missing_data'):
+                st.markdown("#### Missing Data Anomalies")
+                missing = anomaly_data['missing_data']
+                st.write(f"- **Count:** {missing['count']} missing values ({missing['percentage']:.2f}%)")
+                st.write(f"- **Pattern:** {missing['pattern'].replace('_', ' ').title()}")
+            
+            # Rule violations
+            if anomaly_data.get('rule_violations'):
+                st.markdown("#### Rule Violations")
+                violations = anomaly_data['rule_violations']
+                st.write(f"- **Count:** {violations['count']} violations")
+                st.write(f"- **Severity:** {violations['severity'].title()}")
+                if violations.get('types'):
+                    st.write("- **Types:**")
+                    for vtype in violations['types']:
+                        st.write(f"  • {vtype}")
+        
+        # Action buttons
+        action_cols = st.columns([1, 1, 2])
+        
+        with action_cols[0]:
+            if st.button("🧹 Clean This Column", key="anomaly_clean"):
+                st.switch_page("pages/3_Cleaning_Wizard.py")
+        
+        with action_cols[1]:
+            if st.button("🗑️ Clear Results", key="anomaly_clear"):
+                if selected_column in st.session_state.anomaly_results:
+                    del st.session_state.anomaly_results[selected_column]
+                    st.rerun()
+        
+        with action_cols[2]:
+            st.info("💡 These results will be included in your PDF report")
+else:
+    st.info("📊 Analyze a column first to run anomaly detection")
 
 # Navigation hints
 st.markdown("---")
