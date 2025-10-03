@@ -104,6 +104,32 @@ The Streamlit app is configured to:
 The AI assistant requires a GROQ_API_KEY environment variable to be set. Without this key, the AI features will not be available, but all other functionality will work normally.
 
 ## Recent Changes
+- **2025-10-03 Performance Optimizations**: Comprehensive performance improvements across all features
+  - ✅ **Deterministic Caching System**: Implemented SHA256-based, order-aware caching in ColumnAnalyzer
+    * Full-column hash that detects any data value or order changes
+    * Deterministic across sessions for stable cache reuse
+    * Cache invalidation on data modifications ensures accuracy
+  
+  - ✅ **Optimized Data Analysis**:
+    * Vectorized missing pattern detection using NumPy (replaces loop-based approach)
+    * Optimized IQR outlier detection with vectorized quantile calculations
+    * Instance-level correlation matrix caching in DataVisualizer
+  
+  - ✅ **Enhanced Cleaning Engine**:
+    * KNN imputation now uses top 10 most correlated columns when >10 features available
+    * Isolation Forest with smart sampling (>50K rows) and parallel processing (n_jobs=-1)
+    * Optimized neighbor selection based on available data
+  
+  - ✅ **Memory Optimizations**:
+    * Missing value heatmaps use int8 instead of int for 87.5% memory reduction
+    * Large dataset sampling (>10K rows) for visualization performance
+    * Capped visualization heights to prevent excessive memory usage
+  
+  - ✅ **Rendering Improvements**:
+    * Correlation matrix calculations cached with instance-level storage
+    * Progress indicators via st.spinner for long-running operations
+    * Efficient batch processing for large datasets
+
 - **2025-10-03 Phase 2 Enhancements**: Advanced visualization, anomaly detection, and PDF reporting
   - ✅ **Enhanced Distribution Analysis**: Improved Column Analysis distribution graphs with:
     * Detailed explanations for skewness, kurtosis, and normality tests with visual icons
