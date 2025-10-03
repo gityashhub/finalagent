@@ -28,7 +28,7 @@ class DataVisualizer:
         self._corr_cache = {}
     
     def plot_missing_patterns(self, df: pd.DataFrame, max_cols: int = 50) -> go.Figure:
-        """Create heatmap of missing value patterns"""
+        """Create heatmap of missing value patterns - optimized for large datasets"""
         # Limit columns for visualization performance
         if len(df.columns) > max_cols:
             cols_to_show = df.columns[:max_cols].tolist()
@@ -38,8 +38,15 @@ class DataVisualizer:
             df_viz = df
             title_suffix = ""
         
-        # Create missing value matrix
-        missing_matrix = df_viz.isnull().astype(int)
+        # Sample rows if dataset is very large (>10000 rows)
+        if len(df_viz) > 10000:
+            # Sample every nth row to reduce memory usage
+            sample_rate = len(df_viz) // 5000
+            df_viz = df_viz.iloc[::sample_rate]
+            title_suffix += f" (sampled {len(df_viz)} rows)"
+        
+        # Create missing value matrix - optimized
+        missing_matrix = df_viz.isnull().astype(np.int8)  # Use int8 instead of int for memory
         
         fig = go.Figure(data=go.Heatmap(
             z=missing_matrix.values.T,
@@ -54,8 +61,8 @@ class DataVisualizer:
             title=f"Missing Value Pattern{title_suffix}",
             xaxis_title="Row Index",
             yaxis_title="Columns",
-            height=max(400, len(df_viz.columns) * 20),
-            xaxis=dict(showticklabels=False) if len(df) > 1000 else {}
+            height=max(400, min(len(df_viz.columns) * 20, 800)),  # Cap height
+            xaxis=dict(showticklabels=False) if len(df_viz) > 1000 else {}
         )
         
         return fig

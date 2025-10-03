@@ -72,11 +72,12 @@ class ColumnAnalyzer:
         return info
     
     def _analyze_missing_patterns(self, df: pd.DataFrame, column: str) -> Dict[str, Any]:
-        """Analyze missing data patterns for the specific column"""
+        """Analyze missing data patterns for the specific column - optimized"""
         series = df[column]
         missing_mask = series.isnull()
         
-        if missing_mask.sum() == 0:
+        missing_sum = missing_mask.sum()
+        if missing_sum == 0:
             return {
                 'total_missing': 0,
                 'percentage': 0,
@@ -87,29 +88,24 @@ class ColumnAnalyzer:
                 'analysis': 'No missing values found'
             }
         
+        series_len = len(series)
         analysis = {
-            'total_missing': missing_mask.sum(),
-            'percentage': (missing_mask.sum() / len(series)) * 100,
+            'total_missing': missing_sum,
+            'percentage': (missing_sum / series_len) * 100,
             'pattern_type': 'unknown',
             'consecutive_missing': [],
             'missing_by_position': {}
         }
         
-        # Find consecutive missing values
-        consecutive = []
-        current_streak = 0
-        for is_missing in missing_mask:
-            if is_missing:
-                current_streak += 1
-            else:
-                if current_streak > 0:
-                    consecutive.append(current_streak)
-                current_streak = 0
-        if current_streak > 0:
-            consecutive.append(current_streak)
+        # Find consecutive missing values - optimized with numpy
+        missing_array = missing_mask.values.astype(int)
+        diff = np.diff(np.concatenate(([0], missing_array, [0])))
+        starts = np.where(diff == 1)[0]
+        ends = np.where(diff == -1)[0]
+        consecutive = (ends - starts).tolist()
         
         analysis['consecutive_missing'] = consecutive
-        analysis['max_consecutive'] = max(consecutive) if consecutive else 0
+        analysis['max_consecutive'] = int(max(consecutive)) if consecutive else 0
         
         # Analyze missing pattern type
         if analysis['percentage'] < 5:

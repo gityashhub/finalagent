@@ -512,7 +512,7 @@ class DataCleaningEngine:
         return capped_series, metadata
     
     def _isolation_forest_removal(self, df: pd.DataFrame, column: str, contamination: float = 0.1, **kwargs) -> Tuple[pd.Series, Dict[str, Any]]:
-        """Remove outliers using Isolation Forest"""
+        """Remove outliers using Isolation Forest - optimized"""
         from sklearn.ensemble import IsolationForest
         
         series = df[column].copy()
@@ -525,9 +525,27 @@ class DataCleaningEngine:
         if len(non_null_series) < 10:
             raise ValueError("Insufficient data for Isolation Forest")
         
-        # Fit Isolation Forest
-        iso_forest = IsolationForest(contamination=contamination, random_state=42)
-        outlier_labels = iso_forest.fit_predict(non_null_series.values.reshape(-1, 1))
+        # Optimize: sample data for very large datasets (>50000 rows)
+        if len(non_null_series) > 50000:
+            # Use stratified sampling to maintain distribution
+            sample_size = 50000
+            sampled_indices = np.random.choice(non_null_series.index, size=sample_size, replace=False)
+            fit_data = non_null_series.loc[sampled_indices]
+        else:
+            fit_data = non_null_series
+        
+        # Fit Isolation Forest with optimized parameters
+        iso_forest = IsolationForest(
+            contamination=contamination, 
+            random_state=42,
+            n_estimators=100,  # Default, good balance
+            max_samples='auto',  # Let sklearn optimize
+            n_jobs=-1  # Use all CPU cores
+        )
+        iso_forest.fit(fit_data.values.reshape(-1, 1))
+        
+        # Predict on full dataset
+        outlier_labels = iso_forest.predict(non_null_series.values.reshape(-1, 1))
         
         # Create outlier mask
         outlier_mask = pd.Series(False, index=series.index)
@@ -539,7 +557,8 @@ class DataCleaningEngine:
         metadata = {
             'method': 'isolation_forest',
             'contamination': contamination,
-            'outliers_removed': outlier_mask.sum()
+            'outliers_removed': int(outlier_mask.sum()),
+            'sample_used': len(fit_data) if len(non_null_series) > 50000 else 'full'
         }
         
         return cleaned_series, metadata
