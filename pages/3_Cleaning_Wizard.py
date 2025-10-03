@@ -561,15 +561,71 @@ with st.sidebar:
         st.switch_page("pages/2_Column_Analysis.py")
     
     if st.button("📊 Generate Report", width='stretch'):
-        st.switch_page("pages/5_Reports.py")
+        st.switch_page("pages/6_Reports.py")
     
     if st.button("🤖 AI Assistant", width='stretch'):
-        st.switch_page("pages/4_AI_Assistant.py")
+        st.switch_page("pages/5_AI_Assistant.py")
+
+st.divider()
+
+st.subheader("✅ Data Validation & Quality Check")
+
+if st.button("🔍 Run Pre-Export Validation", type="primary"):
+    with st.spinner("Validating dataset quality..."):
+        validation_results = cleaning_engine.validate_dataset_for_export(df)
+        st.session_state.validation_results = validation_results
+        st.rerun()
+
+if 'validation_results' in st.session_state and st.session_state.validation_results:
+    val_results = st.session_state.validation_results
+    
+    if val_results['overall_passed']:
+        st.success("✅ Dataset passed validation! Ready for export.")
+    else:
+        st.error("❌ Dataset has critical issues that should be addressed before export.")
+    
+    val_cols = st.columns(3)
+    with val_cols[0]:
+        st.metric("Critical Issues", val_results['total_issues'])
+    with val_cols[1]:
+        st.metric("Warnings", val_results['total_warnings'])
+    with val_cols[2]:
+        columns_with_issues = sum(1 for v in val_results['column_validations'].values() if not v['passed'])
+        st.metric("Columns with Issues", columns_with_issues)
+    
+    if val_results['critical_issues']:
+        st.markdown("#### 🔴 Critical Issues:")
+        for issue in val_results['critical_issues']:
+            st.error(issue)
+    
+    if val_results['recommendations']:
+        st.markdown("#### 💡 Recommendations:")
+        for rec in val_results['recommendations']:
+            st.info(rec)
+    
+    with st.expander("📋 Detailed Column Validation"):
+        for col, col_val in val_results['column_validations'].items():
+            status_icon = "✅" if col_val['passed'] else "❌"
+            st.markdown(f"**{status_icon} {col}**")
+            
+            if col_val['issues']:
+                for issue in col_val['issues']:
+                    st.error(f"  • {issue}")
+            
+            if col_val['warnings']:
+                for warning in col_val['warnings']:
+                    st.warning(f"  • {warning}")
+            
+            if not col_val['issues'] and not col_val['warnings']:
+                st.success("  • No issues detected")
+            
+            st.divider()
 
 # Navigation hints
 st.markdown("---")
 st.markdown("**Tips:**")
 st.markdown("- 👁️ Always preview changes before applying them")
+st.markdown("- ✅ Run validation checks before exporting data")
 st.markdown("- 🤖 Use AI guidance for method selection and validation")
 st.markdown("- ↶↷ Use undo/redo to experiment safely")
 st.markdown("- 📊 Monitor the impact statistics to understand changes")

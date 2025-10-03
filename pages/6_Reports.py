@@ -35,8 +35,94 @@ if weights_manager:
 report_generator = st.session_state.report_generator
 visualizer = DataVisualizer()
 
+st.subheader("📥 Data Export Options")
+
+export_cols = st.columns([2, 1, 1])
+
+with export_cols[0]:
+    st.markdown("Export your cleaned dataset in various formats")
+
+with export_cols[1]:
+    csv_data = df.to_csv(index=False)
+    st.download_button(
+        label="📊 Download Cleaned CSV",
+        data=csv_data,
+        file_name=f"cleaned_dataset_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+        mime="text/csv",
+        use_container_width=True
+    )
+
+with export_cols[2]:
+    if original_df is not None:
+        csv_original = original_df.to_csv(index=False)
+        st.download_button(
+            label="📄 Download Original CSV",
+            data=csv_original,
+            file_name=f"original_dataset_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+            mime="text/csv",
+            use_container_width=True
+        )
+
+st.divider()
+
+st.subheader("📋 Cleaned Dataset Preview")
+
+preview_tab1, preview_tab2, preview_tab3 = st.tabs(["Current Data", "Summary Statistics", "Data Comparison"])
+
+with preview_tab1:
+    st.markdown("**Current Cleaned Dataset:**")
+    st.dataframe(df.head(100), use_container_width=True)
+    st.caption(f"Showing first 100 rows of {len(df)} total rows")
+
+with preview_tab2:
+    st.markdown("**Dataset Statistics:**")
+    
+    stats_cols = st.columns(4)
+    with stats_cols[0]:
+        st.metric("Total Rows", f"{len(df):,}")
+    with stats_cols[1]:
+        st.metric("Total Columns", len(df.columns))
+    with stats_cols[2]:
+        st.metric("Missing Values", f"{df.isnull().sum().sum():,}")
+    with stats_cols[3]:
+        cleaned_count = len(st.session_state.get('cleaning_history', {}))
+        st.metric("Columns Cleaned", cleaned_count)
+    
+    st.markdown("**Numeric Columns Summary:**")
+    numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+    if numeric_cols:
+        st.dataframe(df[numeric_cols].describe(), use_container_width=True)
+    else:
+        st.info("No numeric columns in dataset")
+
+with preview_tab3:
+    if original_df is not None:
+        st.markdown("**Changes from Original Dataset:**")
+        
+        comparison_data = []
+        for col in df.columns:
+            if col in original_df.columns:
+                orig_missing = original_df[col].isnull().sum()
+                curr_missing = df[col].isnull().sum()
+                
+                comparison_data.append({
+                    'Column': col,
+                    'Original Missing': orig_missing,
+                    'Current Missing': curr_missing,
+                    'Change': curr_missing - orig_missing,
+                    'Cleaned': '✅' if col in st.session_state.get('cleaning_history', {}) else ''
+                })
+        
+        if comparison_data:
+            comparison_df = pd.DataFrame(comparison_data)
+            st.dataframe(comparison_df, use_container_width=True, hide_index=True)
+    else:
+        st.info("Original dataset not available for comparison")
+
+st.divider()
+
 # Report generation controls
-st.subheader("1. Report Configuration")
+st.subheader("📄 Report Configuration")
 
 config_cols = st.columns([2, 2])
 
@@ -293,9 +379,58 @@ if st.session_state.get('generated_reports'):
                     st.info("No high correlation pairs found.")
             else:
                 st.info("Need at least 2 numeric columns for correlation analysis.")
+    
+    st.divider()
+    
+    st.subheader("5. Custom Visualizations")
+    
+    saved_visualizations = st.session_state.get('saved_visualizations', [])
+    
+    if saved_visualizations:
+        st.success(f"✅ {len(saved_visualizations)} custom visualization(s) included in report")
+        
+        for idx, viz in enumerate(saved_visualizations):
+            st.markdown(f"#### {viz['name']}")
+            st.plotly_chart(viz['fig'], use_container_width=True)
+            st.caption(f"Type: {viz['type'].title()} | Columns: {', '.join(viz['columns'])}")
+            st.divider()
+    else:
+        st.info("No custom visualizations saved. Visit the Visualization page to create and save charts.")
+    
+    st.divider()
+    
+    st.subheader("6. Anomaly Detection Results")
+    
+    anomaly_results = st.session_state.get('anomaly_results', {})
+    
+    if anomaly_results:
+        total_anomalies = sum(
+            result.get('count', result.get('missing_count', 0)) 
+            for result in anomaly_results.values()
+        )
+        
+        st.success(f"✅ Anomaly detection results included ({len(anomaly_results)} columns with anomalies)")
+        
+        anomaly_summary_data = []
+        for col, result in anomaly_results.items():
+            anomaly_summary_data.append({
+                'Column': col,
+                'Type': result['type'].replace('_', ' ').title(),
+                'Anomaly Count': result.get('count', result.get('missing_count', 0)),
+                'Severity': result.get('severity', 'N/A').title() if result.get('severity') else 'N/A'
+            })
+        
+        anomaly_summary_df = pd.DataFrame(anomaly_summary_data)
+        st.dataframe(anomaly_summary_df, use_container_width=True, hide_index=True)
+        
+        st.metric("Total Anomalies Detected", total_anomalies)
+    else:
+        st.info("No anomaly detection results. Visit the Anomaly Detection page to run analysis.")
+
+st.divider()
 
 # Cleaning summary
-st.subheader("5. Cleaning Operations Summary")
+st.subheader("7. Cleaning Operations Summary")
 
 if st.session_state.cleaning_history:
     # Operations by column
@@ -514,7 +649,7 @@ with st.sidebar:
         st.switch_page("pages/2_Column_Analysis.py")
     
     if st.button("🤖 AI Assistant", width='stretch'):
-        st.switch_page("pages/4_AI_Assistant.py")
+        st.switch_page("pages/5_AI_Assistant.py")
 
 # Footer
 st.markdown("---")

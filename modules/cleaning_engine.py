@@ -631,3 +631,99 @@ class DataCleaningEngine:
         }
         
         return standardized_series, metadata
+    
+    def validate_data_quality(self, df: pd.DataFrame, column: str) -> Dict[str, Any]:
+        """Validate data quality before export with comprehensive checks"""
+        series = df[column]
+        validation_results = {
+            'column': column,
+            'issues': [],
+            'warnings': [],
+            'passed': True
+        }
+        
+        missing_count = series.isnull().sum()
+        missing_pct = (missing_count / len(series)) * 100
+        
+        if missing_pct > 10:
+            validation_results['issues'].append(f"High missing data: {missing_pct:.1f}%")
+            validation_results['passed'] = False
+        elif missing_pct > 5:
+            validation_results['warnings'].append(f"Moderate missing data: {missing_pct:.1f}%")
+        
+        if pd.api.types.is_numeric_dtype(series):
+            non_null = series.dropna()
+            if len(non_null) > 0:
+                q1 = non_null.quantile(0.25)
+                q3 = non_null.quantile(0.75)
+                iqr = q3 - q1
+                outliers = non_null[(non_null < q1 - 1.5 * iqr) | (non_null > q3 + 1.5 * iqr)]
+                outlier_pct = (len(outliers) / len(non_null)) * 100
+                
+                if outlier_pct > 5:
+                    validation_results['warnings'].append(f"High outlier percentage: {outlier_pct:.1f}%")
+                
+                if non_null.isinf().any():
+                    validation_results['issues'].append("Contains infinite values")
+                    validation_results['passed'] = False
+        
+        elif series.dtype == 'object':
+            if len(series.dropna()) > 0:
+                value_counts = series.value_counts()
+                if len(value_counts) == len(series):
+                    validation_results['warnings'].append("All values are unique (possible ID column)")
+                
+                rare_threshold = len(series) * 0.01
+                rare_values = value_counts[value_counts < rare_threshold]
+                if len(rare_values) > len(value_counts) * 0.5:
+                    validation_results['warnings'].append(f"Many rare values: {len(rare_values)} categories < 1% frequency")
+        
+        duplicates_count = df.duplicated(subset=[column], keep=False).sum()
+        if duplicates_count > len(df) * 0.1:
+            validation_results['warnings'].append(f"High duplicate rate: {(duplicates_count/len(df)*100):.1f}%")
+        
+        validation_results['statistics'] = {
+            'missing_count': int(missing_count),
+            'missing_percentage': float(missing_pct),
+            'unique_count': int(series.nunique()),
+            'duplicate_count': int(duplicates_count)
+        }
+        
+        return validation_results
+    
+    def validate_dataset_for_export(self, df: pd.DataFrame) -> Dict[str, Any]:
+        """Validate entire dataset before export"""
+        dataset_validation = {
+            'overall_passed': True,
+            'total_issues': 0,
+            'total_warnings': 0,
+            'column_validations': {},
+            'critical_issues': [],
+            'recommendations': []
+        }
+        
+        for column in df.columns:
+            col_validation = self.validate_data_quality(df, column)
+            dataset_validation['column_validations'][column] = col_validation
+            
+            if not col_validation['passed']:
+                dataset_validation['overall_passed'] = False
+                dataset_validation['critical_issues'].extend([f"{column}: {issue}" for issue in col_validation['issues']])
+            
+            dataset_validation['total_issues'] += len(col_validation['issues'])
+            dataset_validation['total_warnings'] += len(col_validation['warnings'])
+        
+        if dataset_validation['total_issues'] > 0:
+            dataset_validation['recommendations'].append("Review and address critical issues before final export")
+        
+        if dataset_validation['total_warnings'] > 0:
+            dataset_validation['recommendations'].append("Consider addressing warnings to improve data quality")
+        
+        total_missing = df.isnull().sum().sum()
+        total_cells = len(df) * len(df.columns)
+        overall_missing_pct = (total_missing / total_cells) * 100
+        
+        if overall_missing_pct > 10:
+            dataset_validation['recommendations'].append(f"Dataset has {overall_missing_pct:.1f}% missing values overall - consider additional cleaning")
+        
+        return dataset_validation
