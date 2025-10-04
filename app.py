@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-from modules.utils import initialize_session_state
 
 # Configure page
 st.set_page_config(
@@ -11,10 +10,10 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Initialize session state
-initialize_session_state()
 
 def main():
+    from modules.utils import initialize_session_state
+    initialize_session_state()
     st.title("🧹 Intelligent Data Cleaning Assistant")
     
     st.markdown("""
