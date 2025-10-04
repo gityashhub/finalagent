@@ -693,7 +693,7 @@ class DataCleaningEngine:
                 if outlier_pct > 5:
                     validation_results['warnings'].append(f"High outlier percentage: {outlier_pct:.1f}%")
                 
-                if non_null.isinf().any():
+                if np.isinf(non_null).any():
                     validation_results['issues'].append("Contains infinite values")
                     validation_results['passed'] = False
         
