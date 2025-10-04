@@ -590,7 +590,7 @@ All operations listed above can be independently verified and reproduced using t
                      anomaly_results: Dict[str, Any] = None, 
                      saved_visualizations: List[Dict[str, Any]] = None,
                      title: str = "Data Cleaning Report") -> bytes:
-        """Export reports to PDF format with anomalies and visualizations"""
+        """Export comprehensive reports to PDF format with all issues, cleaning methods, imputed values, and visualizations"""
         from reportlab.lib.pagesizes import letter, A4
         from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
         from reportlab.lib.units import inch
@@ -603,39 +603,84 @@ All operations listed above can be independently verified and reproduced using t
         # Create PDF buffer
         buffer = BytesIO()
         doc = SimpleDocTemplate(buffer, pagesize=letter,
-                              rightMargin=72, leftMargin=72,
-                              topMargin=72, bottomMargin=18)
+                              rightMargin=60, leftMargin=60,
+                              topMargin=60, bottomMargin=40)
         
         # Container for PDF elements
         elements = []
         
-        # Styles
+        # Enhanced Styles
         styles = getSampleStyleSheet()
         title_style = ParagraphStyle(
             'CustomTitle',
             parent=styles['Heading1'],
-            fontSize=24,
-            textColor=colors.HexColor('#2c3e50'),
-            spaceAfter=30,
-            alignment=TA_CENTER
+            fontSize=26,
+            textColor=colors.HexColor('#1a5490'),
+            spaceAfter=20,
+            spaceBefore=10,
+            alignment=TA_CENTER,
+            fontName='Helvetica-Bold'
         )
         heading_style = ParagraphStyle(
             'CustomHeading',
             parent=styles['Heading2'],
-            fontSize=16,
+            fontSize=14,
+            textColor=colors.HexColor('#2c3e50'),
+            spaceAfter=10,
+            spaceBefore=15,
+            fontName='Helvetica-Bold'
+        )
+        subheading_style = ParagraphStyle(
+            'SubHeading',
+            parent=styles['Heading3'],
+            fontSize=12,
             textColor=colors.HexColor('#34495e'),
-            spaceAfter=12,
-            spaceBefore=12
+            spaceAfter=8,
+            spaceBefore=10,
+            fontName='Helvetica-Bold'
         )
         normal_style = styles['Normal']
+        issue_style = ParagraphStyle(
+            'IssueStyle',
+            parent=styles['Normal'],
+            fontSize=9,
+            textColor=colors.HexColor('#c0392b'),
+            leftIndent=20
+        )
         
-        # Title
-        elements.append(Paragraph(f"🧹 {title}", title_style))
-        elements.append(Paragraph(f"<b>Generated:</b> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", normal_style))
-        elements.append(Spacer(1, 0.3*inch))
+        # Title Page
+        elements.append(Spacer(1, 1*inch))
+        elements.append(Paragraph(f"{title}", title_style))
+        elements.append(Spacer(1, 0.2*inch))
+        elements.append(Paragraph(
+            f"<b>Report Generated:</b> {datetime.now().strftime('%B %d, %Y at %H:%M:%S')}", 
+            ParagraphStyle('DateStyle', parent=normal_style, alignment=TA_CENTER, fontSize=11)
+        ))
+        elements.append(Spacer(1, 0.5*inch))
+        elements.append(Paragraph(
+            "<i>Comprehensive Data Quality Assessment and Cleaning Documentation</i>",
+            ParagraphStyle('SubtitleStyle', parent=normal_style, alignment=TA_CENTER, fontSize=10, textColor=colors.grey)
+        ))
+        elements.append(PageBreak())
+        
+        # Table of Contents
+        elements.append(Paragraph("📋 Table of Contents", heading_style))
+        toc_data = [
+            "1. Executive Summary",
+            "2. All Issues Detected in Dataset",
+            "3. Cleaning Operations Applied",
+            "4. Imputed Values and Results",
+            "5. Anomaly Detection Results",
+            "6. Visualizations",
+            "7. Complete Audit Trail"
+        ]
+        for item in toc_data:
+            elements.append(Paragraph(f"&nbsp;&nbsp;&nbsp;{item}", normal_style))
+        elements.append(PageBreak())
         
         # Executive Summary
-        elements.append(Paragraph("📊 Executive Summary", heading_style))
+        elements.append(Paragraph("1. 📊 Executive Summary", heading_style))
+        elements.append(Spacer(1, 0.2*inch))
         
         # Dataset statistics
         summary_data = [
@@ -643,36 +688,191 @@ All operations listed above can be independently verified and reproduced using t
             ['Total Rows', f"{len(df):,}"],
             ['Total Columns', str(len(df.columns))],
             ['Missing Values', f"{df.isnull().sum().sum():,}"],
+            ['Missing Percentage', f"{(df.isnull().sum().sum() / (len(df) * len(df.columns)) * 100):.2f}%"],
             ['Analyzed Columns', str(len(analysis_results))],
             ['Cleaned Columns', str(len(cleaning_history))]
         ]
         
-        summary_table = Table(summary_data, colWidths=[3*inch, 3*inch])
+        summary_table = Table(summary_data, colWidths=[3*inch, 3.5*inch])
         summary_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3498db')),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1a5490')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
             ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 12),
+            ('FONTSIZE', (0, 0), (-1, 0), 11),
             ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+            ('TOPPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#ecf0f1')),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor('#ecf0f1'), colors.white])
         ]))
         
         elements.append(summary_table)
-        elements.append(Spacer(1, 0.3*inch))
+        elements.append(PageBreak())
         
-        # Anomaly Detection Results
+        # Section 2: All Issues Detected in Dataset
+        elements.append(Paragraph("2. 🔍 All Issues Detected in Dataset", heading_style))
+        elements.append(Spacer(1, 0.2*inch))
+        
+        if analysis_results:
+            for col_name, analysis in analysis_results.items():
+                elements.append(Paragraph(f"<b>Column: {col_name}</b>", subheading_style))
+                
+                # Collect all issues for this column
+                issues_found = []
+                
+                # Missing data issues
+                missing_count = analysis.get('basic_info', {}).get('missing_count', 0)
+                missing_pct = analysis.get('basic_info', {}).get('missing_percentage', 0)
+                if missing_count > 0:
+                    issues_found.append(f"Missing Values: {missing_count:,} ({missing_pct:.2f}%)")
+                    pattern = analysis.get('missing_analysis', {}).get('pattern_type', 'Unknown')
+                    issues_found.append(f"  → Missing pattern: {pattern}")
+                
+                # Outlier issues
+                outlier_summary = analysis.get('outlier_analysis', {}).get('summary', {})
+                if outlier_summary.get('consensus_outliers', 0) > 0:
+                    outlier_count = outlier_summary['consensus_outliers']
+                    outlier_pct = outlier_summary.get('consensus_percentage', 0)
+                    severity = outlier_summary.get('severity', 'unknown')
+                    issues_found.append(f"Outliers Detected: {outlier_count} ({outlier_pct:.2f}%) - Severity: {severity.title()}")
+                
+                # Data quality issues
+                quality_data = analysis.get('data_quality', {})
+                quality_score = quality_data.get('score', 100)
+                if quality_score < 80:
+                    issues_found.append(f"Data Quality Score: {quality_score}/100 - Grade: {quality_data.get('grade', 'Unknown')}")
+                    for issue in quality_data.get('issues', []):
+                        issues_found.append(f"  → {issue}")
+                
+                # Rule violations
+                violations = analysis.get('rule_violations', {})
+                if violations.get('total_violations', 0) > 0:
+                    issues_found.append(f"Rule Violations: {violations['total_violations']}")
+                    for violation_type, count in violations.get('violation_counts', {}).items():
+                        if count > 0:
+                            issues_found.append(f"  → {violation_type}: {count}")
+                
+                # Display issues
+                if issues_found:
+                    for issue in issues_found:
+                        elements.append(Paragraph(f"• {issue}", issue_style))
+                    elements.append(Spacer(1, 0.15*inch))
+                else:
+                    elements.append(Paragraph("✅ No major issues detected", 
+                        ParagraphStyle('GoodStyle', parent=normal_style, textColor=colors.green, leftIndent=20)))
+                    elements.append(Spacer(1, 0.15*inch))
+        else:
+            elements.append(Paragraph("No column analysis available.", normal_style))
+        
+        elements.append(PageBreak())
+        
+        # Section 3: Cleaning Operations Applied
+        elements.append(Paragraph("3. 🧹 Cleaning Operations Applied", heading_style))
+        elements.append(Spacer(1, 0.2*inch))
+        
+        if cleaning_history:
+            for col_name, operations in cleaning_history.items():
+                if operations:
+                    elements.append(Paragraph(f"<b>Column: {col_name}</b>", subheading_style))
+                    
+                    for idx, op in enumerate(operations, 1):
+                        method = op.get('method_name', 'Unknown Method')
+                        timestamp = op.get('timestamp', '')[:19] if op.get('timestamp') else 'N/A'
+                        
+                        elements.append(Paragraph(
+                            f"<b>Operation {idx}:</b> {method.replace('_', ' ').title()}", 
+                            normal_style
+                        ))
+                        elements.append(Paragraph(f"Applied: {timestamp}", normal_style))
+                        
+                        # Show parameters if any
+                        params = op.get('parameters', {})
+                        if params:
+                            param_str = ", ".join([f"{k}={v}" for k, v in params.items() if k not in ['weights', 'use_weights']])
+                            if param_str:
+                                elements.append(Paragraph(f"Parameters: {param_str}", normal_style))
+                        
+                        elements.append(Spacer(1, 0.05*inch))
+                    
+                    elements.append(Spacer(1, 0.1*inch))
+        else:
+            elements.append(Paragraph("No cleaning operations have been performed yet.", normal_style))
+        
+        elements.append(PageBreak())
+        
+        # Section 4: Imputed Values and Results
+        elements.append(Paragraph("4. 📝 Imputed Values and Cleaning Results", heading_style))
+        elements.append(Spacer(1, 0.2*inch))
+        
+        if cleaning_history:
+            imputation_data = []
+            imputation_data.append(['Column', 'Method', 'Imputed Value', 'Rows Affected', 'Result'])
+            
+            for col_name, operations in cleaning_history.items():
+                for op in operations:
+                    method = op.get('method_name', 'Unknown')
+                    metadata = op.get('metadata', {})
+                    impact_stats = op.get('impact_stats', {})
+                    
+                    # Get imputed value if available
+                    imputed_val = metadata.get('imputed_value', 'N/A')
+                    if imputed_val != 'N/A':
+                        if isinstance(imputed_val, float):
+                            imputed_val = f"{imputed_val:.4f}"
+                        else:
+                            imputed_val = str(imputed_val)
+                    
+                    # Get rows affected
+                    rows_affected = impact_stats.get('rows_affected', metadata.get('values_imputed', 'N/A'))
+                    
+                    # Get result description
+                    result = op.get('result', 'Completed')
+                    if impact_stats.get('missing_change'):
+                        result = f"Missing: {impact_stats.get('missing_before', 0)} → {impact_stats.get('missing_after', 0)}"
+                    
+                    imputation_data.append([
+                        col_name,
+                        method.replace('_', ' ').title(),
+                        str(imputed_val)[:20],  # Truncate if too long
+                        str(rows_affected),
+                        result[:30]  # Truncate if too long
+                    ])
+            
+            if len(imputation_data) > 1:
+                imputation_table = Table(imputation_data, colWidths=[1.3*inch, 1.3*inch, 1.2*inch, 0.9*inch, 1.8*inch])
+                imputation_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#27ae60')),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, -1), 8),
+                    ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
+                    ('TOPPADDING', (0, 0), (-1, 0), 10),
+                    ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#d5f4e6')),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                    ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                    ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor('#d5f4e6'), colors.white])
+                ]))
+                elements.append(imputation_table)
+            else:
+                elements.append(Paragraph("No imputation operations recorded.", normal_style))
+        else:
+            elements.append(Paragraph("No cleaning operations have been performed yet.", normal_style))
+        
+        elements.append(PageBreak())
+        
+        # Section 5: Anomaly Detection Results
+        elements.append(Paragraph("5. 🚨 Anomaly Detection Results", heading_style))
+        elements.append(Spacer(1, 0.2*inch))
+        
         if anomaly_results and len(anomaly_results) > 0:
-            elements.append(PageBreak())
-            elements.append(Paragraph("🚨 Anomaly Detection Results", heading_style))
-            elements.append(Spacer(1, 0.2*inch))
             
             for col_name, anomaly_data in anomaly_results.items():
-                elements.append(Paragraph(f"<b>Column: {col_name}</b>", normal_style))
+                elements.append(Paragraph(f"<b>Column: {col_name}</b>", subheading_style))
                 
                 # Anomaly summary table
-                anomaly_table_data = [['Type', 'Count', 'Details']]
+                anomaly_table_data = [['Anomaly Type', 'Count', 'Details']]
                 
                 # Outliers
                 if anomaly_data.get('total_outliers', 0) > 0:
@@ -699,81 +899,48 @@ All operations listed above can be independently verified and reproduced using t
                     ])
                 
                 if len(anomaly_table_data) > 1:
-                    anomaly_table = Table(anomaly_table_data, colWidths=[1.5*inch, 1*inch, 3.5*inch])
+                    anomaly_table = Table(anomaly_table_data, colWidths=[1.5*inch, 1*inch, 4*inch])
                     anomaly_table.setStyle(TableStyle([
                         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#e74c3c')),
                         ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
                         ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
                         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
                         ('FONTSIZE', (0, 0), (-1, -1), 9),
-                        ('BACKGROUND', (0, 1), (-1, -1), colors.lightgrey),
+                        ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
+                        ('TOPPADDING', (0, 0), (-1, 0), 10),
+                        ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#fadbd8')),
                         ('GRID', (0, 0), (-1, -1), 1, colors.black),
-                        ('VALIGN', (0, 0), (-1, -1), 'TOP')
+                        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor('#fadbd8'), colors.white])
                     ]))
                     elements.append(anomaly_table)
                     elements.append(Spacer(1, 0.2*inch))
+        else:
+            elements.append(Paragraph("No anomaly detection analysis performed.", normal_style))
         
-        # Column Analysis Summary
-        if analysis_results:
-            elements.append(PageBreak())
-            elements.append(Paragraph("🔍 Column Analysis Summary", heading_style))
-            elements.append(Spacer(1, 0.2*inch))
-            
-            analysis_table_data = [['Column', 'Type', 'Missing %', 'Quality Score', 'Status']]
-            
-            for col_name, analysis in analysis_results.items():
-                col_type = analysis.get('distribution_analysis', {}).get('type', 'unknown')
-                missing_pct = analysis.get('basic_info', {}).get('missing_percentage', 0)
-                quality_score = analysis.get('data_quality', {}).get('score', 0)
-                cleaned = '✅ Cleaned' if col_name in cleaning_history else '⏳ Pending'
-                
-                analysis_table_data.append([
-                    col_name,
-                    col_type.title(),
-                    f"{missing_pct:.1f}%",
-                    f"{quality_score}/100",
-                    cleaned
-                ])
-            
-            # Split table if too many columns
-            max_rows_per_page = 30
-            for i in range(0, len(analysis_table_data), max_rows_per_page):
-                chunk = analysis_table_data[i:min(i+max_rows_per_page, len(analysis_table_data))]
-                if i > 0:
-                    chunk.insert(0, analysis_table_data[0])  # Add header
-                
-                analysis_table = Table(chunk, colWidths=[1.5*inch, 1*inch, 1*inch, 1.2*inch, 1.3*inch])
-                analysis_table.setStyle(TableStyle([
-                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3498db')),
-                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                    ('FONTSIZE', (0, 0), (-1, -1), 8),
-                    ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-                    ('GRID', (0, 0), (-1, -1), 1, colors.black),
-                    ('VALIGN', (0, 0), (-1, -1), 'MIDDLE')
-                ]))
-                elements.append(analysis_table)
-                
-                if i + max_rows_per_page < len(analysis_table_data):
-                    elements.append(PageBreak())
+        elements.append(PageBreak())
         
-        # Saved Visualizations
+        # Section 6: Saved Visualizations
+        elements.append(Paragraph("6. 📈 Visualizations", heading_style))
+        elements.append(Spacer(1, 0.2*inch))
+        
         if saved_visualizations and len(saved_visualizations) > 0:
-            elements.append(PageBreak())
-            elements.append(Paragraph(f"📈 Saved Visualizations ({len(saved_visualizations)} charts)", heading_style))
+            elements.append(Paragraph(f"Total visualizations included: {len(saved_visualizations)}", normal_style))
             elements.append(Spacer(1, 0.2*inch))
             
             for idx, viz in enumerate(saved_visualizations):
                 try:
-                    elements.append(Paragraph(f"<b>{idx + 1}. {viz['name']}</b>", normal_style))
-                    elements.append(Paragraph(f"<i>Type: {viz['type'].title()} | Columns: {', '.join(viz['columns'])}</i>", normal_style))
+                    elements.append(Paragraph(f"<b>{idx + 1}. {viz['name']}</b>", subheading_style))
+                    elements.append(Paragraph(
+                        f"<i>Chart Type: {viz['type'].title()} | Columns: {', '.join(viz['columns'])}</i>", 
+                        normal_style
+                    ))
                     elements.append(Spacer(1, 0.1*inch))
                     
                     # Add visualization image
                     if 'img_bytes' in viz:
                         img_buffer = BytesIO(viz['img_bytes'])
-                        img = Image(img_buffer, width=6*inch, height=3*inch)
+                        img = Image(img_buffer, width=6.5*inch, height=3.5*inch)
                         elements.append(img)
                         elements.append(Spacer(1, 0.3*inch))
                     
@@ -784,23 +951,74 @@ All operations listed above can be independently verified and reproduced using t
                 except Exception as e:
                     elements.append(Paragraph(f"<i>Error loading visualization: {str(e)}</i>", normal_style))
                     elements.append(Spacer(1, 0.2*inch))
+        else:
+            elements.append(Paragraph("No visualizations have been saved to the report.", normal_style))
         
-        # Cleaning Operations
+        # Section 7: Complete Audit Trail
+        elements.append(PageBreak())
+        elements.append(Paragraph("7. 📋 Complete Audit Trail", heading_style))
+        elements.append(Spacer(1, 0.2*inch))
+        
         if cleaning_history:
-            elements.append(PageBreak())
-            elements.append(Paragraph("🧹 Cleaning Operations Log", heading_style))
+            # Create chronological list of all operations
+            all_operations = []
+            for col_name, operations in cleaning_history.items():
+                for op in operations:
+                    op_copy = op.copy()
+                    op_copy['column'] = col_name
+                    all_operations.append(op_copy)
+            
+            # Sort by timestamp
+            all_operations.sort(key=lambda x: x.get('timestamp', ''))
+            
+            elements.append(Paragraph(f"Total operations performed: {len(all_operations)}", normal_style))
             elements.append(Spacer(1, 0.2*inch))
             
-            for col_name, operations in cleaning_history.items():
-                if operations:
-                    elements.append(Paragraph(f"<b>Column: {col_name}</b>", normal_style))
-                    
-                    for op in operations:
-                        method = op.get('method_name', 'Unknown')
-                        timestamp = op.get('timestamp', '')[:19] if op.get('timestamp') else 'N/A'
-                        elements.append(Paragraph(f"• {method} (Applied: {timestamp})", normal_style))
-                    
-                    elements.append(Spacer(1, 0.1*inch))
+            # Create detailed audit table
+            audit_data = [['#', 'Timestamp', 'Column', 'Method', 'Rows Affected']]
+            
+            for idx, op in enumerate(all_operations, 1):
+                timestamp = op.get('timestamp', 'N/A')[:19]
+                column = op.get('column', 'Unknown')
+                method = op.get('method_name', 'Unknown').replace('_', ' ').title()
+                impact_stats = op.get('impact_stats', {})
+                rows_affected = impact_stats.get('rows_affected', op.get('metadata', {}).get('values_imputed', 'N/A'))
+                
+                audit_data.append([
+                    str(idx),
+                    timestamp,
+                    column,
+                    method,
+                    str(rows_affected)
+                ])
+            
+            # Split audit table if too many operations
+            max_rows_per_page = 25
+            for i in range(0, len(audit_data), max_rows_per_page):
+                chunk = audit_data[i:min(i+max_rows_per_page, len(audit_data))]
+                if i > 0:
+                    chunk.insert(0, audit_data[0])  # Add header
+                
+                audit_table = Table(chunk, colWidths=[0.4*inch, 1.5*inch, 1.5*inch, 2*inch, 1.1*inch])
+                audit_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#8e44ad')),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, -1), 8),
+                    ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
+                    ('TOPPADDING', (0, 0), (-1, 0), 10),
+                    ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#e8daef')),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                    ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                    ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor('#e8daef'), colors.white])
+                ]))
+                elements.append(audit_table)
+                
+                if i + max_rows_per_page < len(audit_data):
+                    elements.append(PageBreak())
+        else:
+            elements.append(Paragraph("No cleaning operations have been performed on this dataset.", normal_style))
         
         # Footer
         elements.append(PageBreak())

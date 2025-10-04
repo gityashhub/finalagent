@@ -195,6 +195,166 @@ class AIAssistant:
         
         return message
     
+    def get_intelligent_cleaning_recommendation(self, column: str, analysis: Dict[str, Any], df: pd.DataFrame) -> str:
+        """Intelligently detect issues and recommend specific cleaning methods with exact parameters and explanations"""
+        if not self.client:
+            return "AI assistant is not available."
+        
+        # Update context with current column analysis
+        self.context['current_column_analysis'] = analysis
+        
+        # Detect specific issues in the column
+        issues_detected = self._detect_column_issues(analysis, df[column])
+        
+        # Build comprehensive prompt with detected issues
+        question = f"""You are analyzing column '{column}' in a survey dataset. I have detected the following specific issues:
+
+{issues_detected}
+
+Based on these SPECIFIC issues, provide CONCRETE cleaning recommendations:
+
+1. **For Each Issue Detected**: 
+   - Specify the EXACT cleaning method to use (e.g., "median_imputation", "iqr_removal", "winsorization")
+   - Provide SPECIFIC parameters for the method (e.g., "n_neighbors=5", "percentile=0.95", "multiplier=1.5")
+   - Explain WHY this method is best for THIS specific issue in THIS column
+   
+2. **Reasoning**: 
+   - Explain how each method addresses the specific problem
+   - Discuss what makes this method optimal given the data characteristics
+   - Mention any trade-offs or considerations
+   
+3. **Order of Operations**: 
+   - Specify which issue to address first and why
+   - Explain dependencies between cleaning steps
+   
+4. **Expected Impact**:
+   - Describe how each cleaning operation will affect the data
+   - Mention any potential risks or side effects
+
+Be SPECIFIC and ACTIONABLE. Don't give generic advice - every recommendation should be tailored to the exact issues detected in this column."""
+        
+        return self.ask_question(question, column)
+    
+    def _detect_column_issues(self, analysis: Dict[str, Any], series: pd.Series) -> str:
+        """Detect specific issues in a column and format them for the AI"""
+        issues = []
+        
+        # 1. Missing Data Issues
+        basic_info = analysis.get('basic_info', {})
+        missing_count = basic_info.get('missing_count', 0)
+        missing_pct = basic_info.get('missing_percentage', 0)
+        
+        if missing_count > 0:
+            pattern = analysis.get('missing_analysis', {}).get('pattern_type', 'Unknown')
+            consecutive = analysis.get('missing_analysis', {}).get('max_consecutive', 0)
+            
+            issue_desc = f"• MISSING VALUES: {missing_count:,} missing ({missing_pct:.2f}%)"
+            issue_desc += f"\n  - Pattern: {pattern}"
+            if consecutive > 1:
+                issue_desc += f"\n  - Max consecutive missing: {consecutive}"
+            
+            # Determine data type for appropriate imputation suggestion
+            if pd.api.types.is_numeric_dtype(series):
+                stats = series.describe()
+                issue_desc += f"\n  - Data type: Numeric (mean={stats.get('mean', 'N/A'):.2f}, median={stats.get('50%', 'N/A'):.2f})"
+                
+                # Check for skewness
+                skewness = abs(stats.get('mean', 0) - stats.get('50%', 0)) / (stats.get('std', 1) + 0.001)
+                if skewness > 0.5:
+                    issue_desc += f"\n  - Distribution: Skewed (consider median over mean)"
+            else:
+                mode_val = series.mode()
+                mode_count = (series == mode_val[0]).sum() if len(mode_val) > 0 else 0
+                issue_desc += f"\n  - Data type: Categorical (mode frequency={mode_count})"
+            
+            issues.append(issue_desc)
+        
+        # 2. Outlier Issues
+        outlier_summary = analysis.get('outlier_analysis', {}).get('summary', {})
+        outlier_count = outlier_summary.get('consensus_outliers', 0)
+        
+        if outlier_count > 0:
+            severity = outlier_summary.get('severity', 'Unknown')
+            outlier_pct = outlier_summary.get('consensus_percentage', 0)
+            
+            issue_desc = f"• OUTLIERS: {outlier_count} outliers detected ({outlier_pct:.2f}%)"
+            issue_desc += f"\n  - Severity: {severity.title()}"
+            
+            # Get method-specific outlier counts
+            method_results = analysis.get('outlier_analysis', {}).get('method_results', {})
+            for method_name, result in method_results.items():
+                method_count = result.get('outlier_count', 0)
+                if method_count > 0:
+                    issue_desc += f"\n  - {result.get('method', method_name)}: {method_count} outliers"
+            
+            # Add distribution info if numeric
+            if pd.api.types.is_numeric_dtype(series):
+                q1, q3 = series.quantile([0.25, 0.75])
+                iqr = q3 - q1
+                lower_bound = q1 - 1.5 * iqr
+                upper_bound = q3 + 1.5 * iqr
+                issue_desc += f"\n  - IQR bounds: [{lower_bound:.2f}, {upper_bound:.2f}]"
+            
+            issues.append(issue_desc)
+        
+        # 3. Data Quality Issues
+        quality_data = analysis.get('data_quality', {})
+        quality_score = quality_data.get('score', 100)
+        
+        if quality_score < 80:
+            issue_desc = f"• DATA QUALITY: Score {quality_score}/100 (Grade: {quality_data.get('grade', 'Unknown')})"
+            
+            specific_issues = quality_data.get('issues', [])
+            if specific_issues:
+                issue_desc += "\n  - Specific problems:"
+                for issue in specific_issues:
+                    issue_desc += f"\n    * {issue}"
+            
+            issues.append(issue_desc)
+        
+        # 4. Distribution Issues
+        dist_analysis = analysis.get('distribution_analysis', {})
+        if dist_analysis:
+            dist_type = dist_analysis.get('type', 'Unknown')
+            
+            if dist_type == 'numeric':
+                skewness = dist_analysis.get('skewness', 0)
+                kurtosis = dist_analysis.get('kurtosis', 0)
+                
+                if abs(skewness) > 1:
+                    issue_desc = f"• DISTRIBUTION: Highly skewed (skewness={skewness:.2f})"
+                    if skewness > 1:
+                        issue_desc += "\n  - Right-skewed: Consider log transformation or winsorization"
+                    else:
+                        issue_desc += "\n  - Left-skewed: May need special handling"
+                    issues.append(issue_desc)
+                
+                if abs(kurtosis) > 3:
+                    issue_desc = f"• DISTRIBUTION: Heavy tails (kurtosis={kurtosis:.2f})"
+                    issue_desc += "\n  - Many extreme values: Consider robust methods"
+                    issues.append(issue_desc)
+        
+        # 5. Rule Violations
+        violations = analysis.get('rule_violations', {})
+        total_violations = violations.get('total_violations', 0)
+        
+        if total_violations > 0:
+            issue_desc = f"• RULE VIOLATIONS: {total_violations} violations detected"
+            
+            violation_counts = violations.get('violation_counts', {})
+            if violation_counts:
+                for violation_type, count in violation_counts.items():
+                    if count > 0:
+                        issue_desc += f"\n  - {violation_type}: {count}"
+            
+            issues.append(issue_desc)
+        
+        # Format all issues
+        if not issues:
+            return "No significant issues detected in this column."
+        
+        return "\n\n".join(issues)
+    
     def get_cleaning_recommendation(self, column: str, analysis: Dict[str, Any]) -> str:
         """Get AI recommendation for cleaning a specific column"""
         if not self.client:

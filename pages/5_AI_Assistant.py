@@ -90,10 +90,10 @@ with quick_actions[0]:
         st.rerun()
 
 with quick_actions[1]:
-    if st.button("🎯 Method Comparison", width='stretch'):
+    if st.button("🧠 Smart Recommendations", width='stretch'):
         if context_column and context_column in st.session_state.column_analysis:
             analysis = st.session_state.column_analysis[context_column]
-            question = f"Compare the different cleaning methods available for column '{context_column}' and recommend the best approach."
+            question = f"🧠 Requesting intelligent analysis and specific cleaning recommendations for column '{context_column}'"
             
             st.session_state.ai_conversation.append({
                 'type': 'user',
@@ -102,8 +102,8 @@ with quick_actions[1]:
                 'context': context_column
             })
             
-            with st.spinner("🤖 Comparing methods..."):
-                response = assistant.get_cleaning_recommendation(context_column, analysis)
+            with st.spinner("🤖 Analyzing issues and preparing specific recommendations..."):
+                response = assistant.get_intelligent_cleaning_recommendation(context_column, analysis, df)
                 st.session_state.ai_conversation.append({
                     'type': 'assistant',
                     'message': response,
